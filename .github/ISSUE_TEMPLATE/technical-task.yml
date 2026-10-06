@@ -1,0 +1,33 @@
+name: "Technical Task"
+description: "Travail technique nécessaire à une User Story ou à l'infrastructure du produit."
+title: "TASK: "
+labels: ["type:technical-task"]
+body:
+  - type: textarea
+    id: objective
+    attributes:
+      label: "Objectif"
+    validations:
+      required: true
+  - type: textarea
+    id: context
+    attributes:
+      label: "Contexte"
+    validations:
+      required: false
+  - type: textarea
+    id: done
+    attributes:
+      label: "Conditions de réalisation"
+      placeholder: |
+        - [ ] ...
+        - [ ] ...
+    validations:
+      required: true
+  - type: textarea
+    id: parent
+    attributes:
+      label: "User Story / Issue parente"
+      placeholder: "#123"
+    validations:
+      required: false

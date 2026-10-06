@@ -1,0 +1,49 @@
+name: "User Story"
+description: "Décrire une fonctionnalité apportant une valeur utilisateur."
+title: "US: "
+labels: ["type:user-story"]
+body:
+  - type: input
+    id: as_a
+    attributes:
+      label: "En tant que"
+      placeholder: "soignant, médecin, responsable de service..."
+    validations:
+      required: true
+  - type: textarea
+    id: want
+    attributes:
+      label: "Je veux"
+      placeholder: "..."
+    validations:
+      required: true
+  - type: textarea
+    id: benefit
+    attributes:
+      label: "Afin de"
+      placeholder: "..."
+    validations:
+      required: true
+  - type: textarea
+    id: context
+    attributes:
+      label: "Contexte / Notes"
+    validations:
+      required: false
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: "Critères d'acceptation"
+      description: "Un critère par ligne, sous forme de checklist."
+      placeholder: |
+        - [ ] ...
+        - [ ] ...
+    validations:
+      required: true
+  - type: textarea
+    id: dependencies
+    attributes:
+      label: "Dépendances"
+      placeholder: "Issues #..., décisions, données, intégrations..."
+    validations:
+      required: false
