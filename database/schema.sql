@@ -25,6 +25,11 @@ CREATE TABLE dosage_form (
   label VARCHAR(128) NOT NULL
 ) ENGINE=InnoDB;
 
+CREATE TABLE pathology_type (
+  code  VARCHAR(32)  PRIMARY KEY,
+  label VARCHAR(128) NOT NULL
+) ENGINE=InnoDB;
+
 -- ------------------------------------------------------------
 -- Person (+ telecom [0..*])
 -- ------------------------------------------------------------
@@ -78,7 +83,7 @@ CREATE TABLE practitioner_role (
   period_start    DATETIME NULL,
   period_end      DATETIME NULL,
   specialty       VARCHAR(128) NULL,
-  practitioner_category   ENUM('PHYSICIAN','PARAMEDICAL','OTHER') NOT NULL,
+  practitioner_category   ENUM('PHYSICIAN','PARAMEDICAL') NOT NULL,
   practitioner_profession ENUM('PHYSICIAN','NURSE','CARE_ASSISTANT',
                                'PHYSIOTHERAPIST','OTHER') NOT NULL
 ) ENGINE=InnoDB;
@@ -112,10 +117,9 @@ CREATE TABLE user_account_role (
 CREATE TABLE patient (
   id                    BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
   person_id             BIGINT UNSIGNED NOT NULL,
-  ipp                   VARCHAR(32) NOT NULL,
+  ipp                   VARCHAR(32) NULL,
   identification_status ENUM('IDENTIFIED','PROVISIONAL','UNKNOWN') NOT NULL,
   active                BOOLEAN NOT NULL DEFAULT TRUE,
-  allergies             TEXT NULL,
   UNIQUE KEY uq_patient_ipp (ipp)
 ) ENGINE=InnoDB;
 
@@ -133,11 +137,30 @@ CREATE TABLE related_person (
   active       BOOLEAN NOT NULL DEFAULT TRUE
 ) ENGINE=InnoDB;
 
+CREATE TABLE allergen (
+  id       BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  code     VARCHAR(32)  NOT NULL UNIQUE,
+  name     VARCHAR(255) NOT NULL,
+  category ENUM('food','medication','environment','biologic') NULL
+) ENGINE=InnoDB;
+
+CREATE TABLE pathology (
+  id                  BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  patient_id          BIGINT UNSIGNED NOT NULL,
+  pathology_type_code VARCHAR(32)  NOT NULL,
+  allergen_id         BIGINT UNSIGNED NULL,
+  name                VARCHAR(255) NULL,
+  active              BOOLEAN NOT NULL DEFAULT TRUE,
+  note                TEXT NULL
+) ENGINE=InnoDB;
+
 CREATE TABLE location (
-  id   BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
-  code VARCHAR(32)  NOT NULL UNIQUE,
-  name VARCHAR(128) NOT NULL,
-  type ENUM('ROOM','BED','BOX') NOT NULL
+  id              BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  organization_id BIGINT UNSIGNED NOT NULL,
+  code            VARCHAR(32)  NOT NULL,
+  name            VARCHAR(128) NOT NULL,
+  type            ENUM('ROOM','BED','BOX') NOT NULL,
+  UNIQUE KEY uq_location_code (organization_id, code)
 ) ENGINE=InnoDB;
 
 CREATE TABLE encounter (
@@ -151,7 +174,6 @@ CREATE TABLE encounter (
   expected_discharge_date DATETIME NULL,
   actual_discharge_date   DATETIME NULL,
   reason                  VARCHAR(255) NULL,
-  current_location_id     BIGINT UNSIGNED NULL,
   service_provider_id     BIGINT UNSIGNED NULL,
   UNIQUE KEY uq_encounter_stay_number (stay_number)
 ) ENGINE=InnoDB;
@@ -169,6 +191,15 @@ CREATE TABLE encounter_participant (
   type            VARCHAR(64) NULL,
   period_start    DATETIME NULL,
   period_end      DATETIME NULL
+) ENGINE=InnoDB;
+
+CREATE TABLE encounter_location (
+  id           BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  encounter_id BIGINT UNSIGNED NOT NULL,
+  location_id  BIGINT UNSIGNED NOT NULL,
+  period_start DATETIME NOT NULL,
+  period_end   DATETIME NULL,
+  KEY ix_el_location (location_id, period_start)
 ) ENGINE=InnoDB;
 
 CREATE TABLE vital_signs (
@@ -204,10 +235,21 @@ CREATE TABLE medication_definition (
   dosage_form_code VARCHAR(32)  NULL
 ) ENGINE=InnoDB;
 
+CREATE TABLE evaluation (
+  id              BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  patient_id      BIGINT UNSIGNED NOT NULL,
+  encounter_id    BIGINT UNSIGNED NOT NULL,
+  practitioner_id BIGINT UNSIGNED NOT NULL,
+  status          ENUM('in-progress','completed','entered-in-error') NOT NULL DEFAULT 'in-progress',
+  effective_at    DATETIME NOT NULL,
+  summary         TEXT NULL
+) ENGINE=InnoDB;
+
 CREATE TABLE care_plan (
   id                BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
   patient_id        BIGINT UNSIGNED NOT NULL,
   encounter_id      BIGINT UNSIGNED NULL,
+  evaluation_id     BIGINT UNSIGNED NULL,
   author_id         BIGINT UNSIGNED NOT NULL,
   validator_id      BIGINT UNSIGNED NULL,
   status            ENUM('draft','active','on-hold','revoked','completed',
@@ -334,6 +376,10 @@ INSERT INTO administration_route (code, label) VALUES
 INSERT INTO dosage_form (code, label) VALUES
   ('TAB', 'Tablet'), ('CAP', 'Capsule'), ('SOL_INJ', 'Solution for injection'),
   ('SYR', 'Syrup'), ('CREAM', 'Cream'), ('PATCH', 'Transdermal patch');
+
+INSERT INTO pathology_type (code, label) VALUES
+  ('ALLERGY', 'Allergy'), ('MEDICAL', 'Medical condition'),
+  ('SURGICAL', 'Surgical history'), ('OBSTETRIC', 'Obstetric history');
 
 INSERT INTO app_role (code, label) VALUES
   ('ADMIN', 'Administrator'), ('PHYSICIAN', 'Physician'),
