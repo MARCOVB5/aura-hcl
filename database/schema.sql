@@ -42,7 +42,8 @@ CREATE TABLE person (
   address_line        VARCHAR(255) NULL,
   address_city        VARCHAR(128) NULL,
   address_postal_code VARCHAR(16)  NULL,
-  address_country     VARCHAR(64)  NULL
+  address_country     VARCHAR(64)  NULL,
+  CONSTRAINT ck_person_name CHECK (name_given IS NULL OR name_family IS NOT NULL)
 ) ENGINE=InnoDB;
 
 CREATE TABLE person_telecom (
@@ -51,7 +52,8 @@ CREATE TABLE person_telecom (
   system    ENUM('phone','fax','email','pager','url','sms','other') NOT NULL,
   value     VARCHAR(255) NOT NULL,
   CONSTRAINT fk_telecom_person FOREIGN KEY (person_id)
-    REFERENCES person(id) ON DELETE CASCADE
+    REFERENCES person(id) ON DELETE CASCADE,
+  UNIQUE KEY uq_telecom (person_id, system, value)
 ) ENGINE=InnoDB;
 
 -- ------------------------------------------------------------
@@ -79,7 +81,8 @@ CREATE TABLE practitioner_identifier (
   system          VARCHAR(255) NULL,
   value           VARCHAR(128) NOT NULL,
   CONSTRAINT fk_prac_ident FOREIGN KEY (practitioner_id)
-    REFERENCES practitioner(id) ON DELETE CASCADE
+    REFERENCES practitioner(id) ON DELETE CASCADE,
+  UNIQUE KEY uq_prac_ident (system, value)
 ) ENGINE=InnoDB;
 
 CREATE TABLE practitioner_role (
@@ -94,7 +97,11 @@ CREATE TABLE practitioner_role (
   practitioner_profession ENUM('PHYSICIAN','NURSE','CARE_ASSISTANT',
                                'PHYSIOTHERAPIST','OTHER') NOT NULL,
   CONSTRAINT fk_role_practitioner FOREIGN KEY (practitioner_id) REFERENCES practitioner(id),
-  CONSTRAINT fk_role_organization FOREIGN KEY (organization_id) REFERENCES organization(id)
+  CONSTRAINT fk_role_organization FOREIGN KEY (organization_id) REFERENCES organization(id),
+  CONSTRAINT ck_role_period CHECK (period_end IS NULL OR period_start IS NULL
+                                   OR period_end >= period_start),
+  CONSTRAINT ck_role_category CHECK ((practitioner_category = 'PHYSICIAN')
+                                     = (practitioner_profession = 'PHYSICIAN'))
 ) ENGINE=InnoDB;
 
 -- ------------------------------------------------------------
@@ -136,7 +143,8 @@ CREATE TABLE patient (
   active                BOOLEAN NOT NULL DEFAULT TRUE,
   CONSTRAINT fk_patient_person FOREIGN KEY (person_id) REFERENCES person(id),
   UNIQUE KEY uq_patient_person (person_id),
-  UNIQUE KEY uq_patient_ipp (ipp)
+  UNIQUE KEY uq_patient_ipp (ipp),
+  CONSTRAINT ck_patient_ipp CHECK (ipp IS NULL OR TRIM(ipp) <> '')
 ) ENGINE=InnoDB;
 
 CREATE TABLE patient_general_practitioner (
@@ -173,9 +181,12 @@ CREATE TABLE pathology (
   name                VARCHAR(255) NULL,
   active              BOOLEAN NOT NULL DEFAULT TRUE,
   note                TEXT NULL,
+  UNIQUE KEY uq_patho_allergen (patient_id, allergen_id),
   CONSTRAINT fk_patho_patient  FOREIGN KEY (patient_id) REFERENCES patient(id),
   CONSTRAINT fk_patho_type     FOREIGN KEY (pathology_type_code) REFERENCES pathology_type(code),
-  CONSTRAINT fk_patho_allergen FOREIGN KEY (allergen_id) REFERENCES allergen(id)
+  CONSTRAINT fk_patho_allergen FOREIGN KEY (allergen_id) REFERENCES allergen(id),
+  CONSTRAINT ck_patho_allergen CHECK ((pathology_type_code = 'ALLERGY') = (allergen_id IS NOT NULL)),
+  CONSTRAINT ck_patho_name     CHECK (allergen_id IS NOT NULL OR name IS NOT NULL)
 ) ENGINE=InnoDB;
 
 CREATE TABLE location (
@@ -201,9 +212,15 @@ CREATE TABLE encounter (
   reason                  VARCHAR(255) NULL,
   service_provider_id     BIGINT UNSIGNED NULL,
   UNIQUE KEY uq_encounter_stay_number (stay_number),
+  UNIQUE KEY uq_encounter_patient (id, patient_id),
   CONSTRAINT fk_enc_patient  FOREIGN KEY (patient_id) REFERENCES patient(id),
   CONSTRAINT fk_enc_type     FOREIGN KEY (encounter_type_code) REFERENCES encounter_type(code),
-  CONSTRAINT fk_enc_provider FOREIGN KEY (service_provider_id) REFERENCES organization(id)
+  CONSTRAINT fk_enc_provider FOREIGN KEY (service_provider_id) REFERENCES organization(id),
+  CONSTRAINT ck_enc_stay_number CHECK (TRIM(stay_number) <> ''),
+  CONSTRAINT ck_enc_expected_discharge CHECK (expected_discharge_date IS NULL
+                                              OR expected_discharge_date >= admission_date),
+  CONSTRAINT ck_enc_actual_discharge   CHECK (actual_discharge_date IS NULL
+                                              OR actual_discharge_date >= admission_date)
 ) ENGINE=InnoDB;
 
 CREATE TABLE hospitalization (
@@ -211,7 +228,9 @@ CREATE TABLE hospitalization (
   admission_status        ENUM('IN_PROGRESS','COMPLETE') NOT NULL DEFAULT 'IN_PROGRESS',
   assessment_completed_at DATETIME NULL,
   CONSTRAINT fk_hosp_encounter FOREIGN KEY (encounter_id)
-    REFERENCES encounter(id) ON DELETE CASCADE
+    REFERENCES encounter(id) ON DELETE CASCADE,
+  CONSTRAINT ck_hosp_assessment CHECK (assessment_completed_at IS NULL
+                                       OR admission_status = 'COMPLETE')
 ) ENGINE=InnoDB;
 
 CREATE TABLE encounter_participant (
@@ -223,7 +242,9 @@ CREATE TABLE encounter_participant (
   period_end      DATETIME NULL,
   CONSTRAINT fk_ep_encounter FOREIGN KEY (encounter_id)
     REFERENCES encounter(id) ON DELETE CASCADE,
-  CONSTRAINT fk_ep_practitioner FOREIGN KEY (practitioner_id) REFERENCES practitioner(id)
+  CONSTRAINT fk_ep_practitioner FOREIGN KEY (practitioner_id) REFERENCES practitioner(id),
+  CONSTRAINT ck_ep_period CHECK (period_end IS NULL OR period_start IS NULL
+                                 OR period_end >= period_start)
 ) ENGINE=InnoDB;
 
 CREATE TABLE encounter_location (
@@ -235,7 +256,8 @@ CREATE TABLE encounter_location (
   KEY ix_el_location (location_id, period_start),
   CONSTRAINT fk_el_encounter FOREIGN KEY (encounter_id)
     REFERENCES encounter(id) ON DELETE CASCADE,
-  CONSTRAINT fk_el_location  FOREIGN KEY (location_id) REFERENCES location(id)
+  CONSTRAINT fk_el_location  FOREIGN KEY (location_id) REFERENCES location(id),
+  CONSTRAINT ck_el_period CHECK (period_end IS NULL OR period_end >= period_start)
 ) ENGINE=InnoDB;
 
 CREATE TABLE vital_signs (
@@ -250,10 +272,16 @@ CREATE TABLE vital_signs (
   height_cm       DECIMAL(5,1) NULL,
   bmi             DECIMAL(5,2) AS (weight_kg / POWER(height_cm / 100, 2)) VIRTUAL,
   note            VARCHAR(255) NULL,
+  UNIQUE KEY uq_vs_patient (id, patient_id),
   KEY ix_vs_latest (patient_id, effective_at),
   CONSTRAINT fk_vs_patient   FOREIGN KEY (patient_id) REFERENCES patient(id),
-  CONSTRAINT fk_vs_encounter FOREIGN KEY (encounter_id) REFERENCES encounter(id),
-  CONSTRAINT fk_vs_recorder  FOREIGN KEY (recorded_by_id) REFERENCES practitioner(id)
+  CONSTRAINT fk_vs_encounter FOREIGN KEY (encounter_id, patient_id)
+    REFERENCES encounter(id, patient_id),
+  CONSTRAINT fk_vs_recorder  FOREIGN KEY (recorded_by_id) REFERENCES practitioner(id),
+  CONSTRAINT ck_vs_not_empty CHECK (weight_kg IS NOT NULL OR height_cm IS NOT NULL),
+  CONSTRAINT ck_vs_weight    CHECK (weight_kg IS NULL OR weight_kg BETWEEN 0.2 AND 650),
+  CONSTRAINT ck_vs_height    CHECK (height_cm IS NULL OR height_cm BETWEEN 20 AND 280),
+  CONSTRAINT ck_vs_method    CHECK ((weight_kg IS NULL) = (weight_method IS NULL))
 ) ENGINE=InnoDB;
 
 -- ------------------------------------------------------------
@@ -283,8 +311,10 @@ CREATE TABLE evaluation (
   status          ENUM('in-progress','completed','entered-in-error') NOT NULL DEFAULT 'in-progress',
   effective_at    DATETIME NOT NULL,
   summary         TEXT NULL,
+  UNIQUE KEY uq_eval_patient (id, patient_id),
   CONSTRAINT fk_eval_patient      FOREIGN KEY (patient_id) REFERENCES patient(id),
-  CONSTRAINT fk_eval_encounter    FOREIGN KEY (encounter_id) REFERENCES encounter(id),
+  CONSTRAINT fk_eval_encounter    FOREIGN KEY (encounter_id, patient_id)
+    REFERENCES encounter(id, patient_id),
   CONSTRAINT fk_eval_practitioner FOREIGN KEY (practitioner_id) REFERENCES practitioner(id)
 ) ENGINE=InnoDB;
 
@@ -303,11 +333,20 @@ CREATE TABLE care_plan (
   description       TEXT NULL,
   created           DATETIME NULL DEFAULT CURRENT_TIMESTAMP,
   validated_at      DATETIME NULL,
+  UNIQUE KEY uq_cp_patient (id, patient_id),
+  UNIQUE KEY uq_cp_author  (id, author_id),
   CONSTRAINT fk_cp_patient   FOREIGN KEY (patient_id) REFERENCES patient(id),
-  CONSTRAINT fk_cp_encounter FOREIGN KEY (encounter_id) REFERENCES encounter(id),
-  CONSTRAINT fk_cp_evaluation FOREIGN KEY (evaluation_id) REFERENCES evaluation(id),
+  CONSTRAINT fk_cp_encounter FOREIGN KEY (encounter_id, patient_id)
+    REFERENCES encounter(id, patient_id),
+  CONSTRAINT fk_cp_evaluation FOREIGN KEY (evaluation_id, patient_id)
+    REFERENCES evaluation(id, patient_id),
   CONSTRAINT fk_cp_author    FOREIGN KEY (author_id) REFERENCES practitioner(id),
-  CONSTRAINT fk_cp_validator FOREIGN KEY (validator_id) REFERENCES user_account(id)
+  CONSTRAINT fk_cp_validator FOREIGN KEY (validator_id) REFERENCES user_account(id),
+  CONSTRAINT ck_cp_validation CHECK (validation_status <> 'VALIDATED'
+                                     OR (validator_id IS NOT NULL AND validated_at IS NOT NULL)),
+  CONSTRAINT ck_cp_urgent CHECK (NOT (status = 'active' AND validation_status = 'PENDING')
+                                 OR urgent),
+  CONSTRAINT ck_cp_evaluation CHECK (urgent OR evaluation_id IS NOT NULL)
 ) ENGINE=InnoDB;
 
 CREATE TABLE request (
@@ -327,11 +366,21 @@ CREATE TABLE request (
   timing_frequency    INT UNSIGNED NULL,
   timing_period       DECIMAL(10,3) NULL,
   timing_period_unit  ENUM('s','min','h','d','wk','mo','a') NULL,
+  UNIQUE KEY uq_req_patient (id, patient_id),
   UNIQUE KEY uq_req_type    (id, request_type),
   CONSTRAINT fk_req_patient   FOREIGN KEY (patient_id) REFERENCES patient(id),
-  CONSTRAINT fk_req_encounter FOREIGN KEY (encounter_id) REFERENCES encounter(id),
+  CONSTRAINT fk_req_encounter FOREIGN KEY (encounter_id, patient_id)
+    REFERENCES encounter(id, patient_id),
   CONSTRAINT fk_req_requester FOREIGN KEY (requester_id) REFERENCES practitioner(id),
-  CONSTRAINT fk_req_cp_patient FOREIGN KEY (care_plan_id) REFERENCES care_plan(id)
+  CONSTRAINT fk_req_cp_patient FOREIGN KEY (care_plan_id, patient_id)
+    REFERENCES care_plan(id, patient_id),
+  CONSTRAINT fk_req_cp_author  FOREIGN KEY (care_plan_id, requester_id)
+    REFERENCES care_plan(id, author_id),
+  CONSTRAINT ck_req_recurrence CHECK (timing_frequency IS NULL OR
+      (timing_frequency > 0 AND timing_bounds_start IS NOT NULL
+       AND timing_period > 0 AND timing_period_unit IS NOT NULL)),
+  CONSTRAINT ck_req_bounds CHECK (timing_bounds_end IS NULL OR timing_bounds_start IS NULL
+                                  OR timing_bounds_end >= timing_bounds_start)
 ) ENGINE=InnoDB;
 
 CREATE TABLE request_timing_event (
@@ -350,7 +399,8 @@ CREATE TABLE request_timing_time_of_day (
 
 CREATE TABLE service_request (
   request_id             UUID NOT NULL PRIMARY KEY,
-  request_type           ENUM('SERVICE','MEDICATION') NOT NULL DEFAULT 'SERVICE',
+  request_type           ENUM('SERVICE','MEDICATION') NOT NULL DEFAULT 'SERVICE'
+                         CHECK (request_type = 'SERVICE'),
   activity_definition_id BIGINT UNSIGNED NOT NULL,
   parameters             TEXT NULL,
   CONSTRAINT fk_sr_request FOREIGN KEY (request_id, request_type)
@@ -361,7 +411,8 @@ CREATE TABLE service_request (
 
 CREATE TABLE medication_request (
   request_id               UUID NOT NULL PRIMARY KEY,
-  request_type             ENUM('SERVICE','MEDICATION') NOT NULL DEFAULT 'MEDICATION',
+  request_type             ENUM('SERVICE','MEDICATION') NOT NULL DEFAULT 'MEDICATION'
+                           CHECK (request_type = 'MEDICATION'),
   medication_definition_id BIGINT UNSIGNED NOT NULL,
   dose_value               DECIMAL(12,4) NULL,
   dose_unit                VARCHAR(32) NULL,
@@ -374,7 +425,8 @@ CREATE TABLE medication_request (
   CONSTRAINT fk_mr_medication FOREIGN KEY (medication_definition_id)
     REFERENCES medication_definition(id),
   CONSTRAINT fk_mr_route FOREIGN KEY (administration_route_code)
-    REFERENCES administration_route(code)
+    REFERENCES administration_route(code),
+  CONSTRAINT ck_mr_dose CHECK ((dose_value IS NULL) = (dose_unit IS NULL))
 ) ENGINE=InnoDB;
 
 CREATE TABLE appointment (
@@ -388,10 +440,13 @@ CREATE TABLE appointment (
   created                  DATETIME NULL DEFAULT CURRENT_TIMESTAMP,
   status                   ENUM('PLANNED','CANCELLED','DONE') NOT NULL DEFAULT 'PLANNED',
   parameters               TEXT NULL,
+  UNIQUE KEY uq_appt_patient (id, patient_id),
   KEY ix_appt_agenda (patient_id, scheduled_at),
   CONSTRAINT fk_appt_patient   FOREIGN KEY (patient_id) REFERENCES patient(id),
-  CONSTRAINT fk_appt_encounter FOREIGN KEY (encounter_id) REFERENCES encounter(id),
-  CONSTRAINT fk_appt_request   FOREIGN KEY (request_id) REFERENCES request(id),
+  CONSTRAINT fk_appt_encounter FOREIGN KEY (encounter_id, patient_id)
+    REFERENCES encounter(id, patient_id),
+  CONSTRAINT fk_appt_request   FOREIGN KEY (request_id, patient_id)
+    REFERENCES request(id, patient_id),
   CONSTRAINT fk_appt_activity  FOREIGN KEY (activity_definition_id)
     REFERENCES activity_definition(id),
   CONSTRAINT fk_appt_practitioner FOREIGN KEY (assigned_practitioner_id)
@@ -412,11 +467,16 @@ CREATE TABLE clinical_procedure (
   note                   TEXT NULL,
   UNIQUE KEY uq_proc_appointment (appointment_id),
   CONSTRAINT fk_proc_patient   FOREIGN KEY (patient_id) REFERENCES patient(id),
-  CONSTRAINT fk_proc_encounter FOREIGN KEY (encounter_id) REFERENCES encounter(id),
-  CONSTRAINT fk_proc_request   FOREIGN KEY (request_id) REFERENCES request(id),
-  CONSTRAINT fk_proc_appt      FOREIGN KEY (appointment_id) REFERENCES appointment(id),
+  CONSTRAINT fk_proc_encounter FOREIGN KEY (encounter_id, patient_id)
+    REFERENCES encounter(id, patient_id),
+  CONSTRAINT fk_proc_request   FOREIGN KEY (request_id, patient_id)
+    REFERENCES request(id, patient_id),
+  CONSTRAINT fk_proc_appt      FOREIGN KEY (appointment_id, patient_id)
+    REFERENCES appointment(id, patient_id),
   CONSTRAINT fk_proc_activity  FOREIGN KEY (activity_definition_id)
-    REFERENCES activity_definition(id)
+    REFERENCES activity_definition(id),
+  CONSTRAINT ck_proc_period CHECK (performed_end IS NULL OR performed_start IS NULL
+                                   OR performed_end >= performed_start)
 ) ENGINE=InnoDB;
 
 CREATE TABLE procedure_performer (
@@ -428,7 +488,123 @@ CREATE TABLE procedure_performer (
   CONSTRAINT fk_pp_practitioner FOREIGN KEY (practitioner_id) REFERENCES practitioner(id)
 ) ENGINE=InnoDB;
 
+-- ============================================================
+-- Triggers for cross-table invariants
+-- ============================================================
 DELIMITER //
+
+CREATE PROCEDURE chk_patient_identified(IN p_person BIGINT UNSIGNED, IN p_status VARCHAR(16))
+BEGIN
+  IF p_status = 'IDENTIFIED' AND
+     (SELECT name_family FROM person WHERE id = p_person) IS NULL THEN
+    SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'C3: identified patient must have a name';
+  END IF;
+END//
+CREATE TRIGGER trg_patient_bi BEFORE INSERT ON patient FOR EACH ROW
+  CALL chk_patient_identified(NEW.person_id, NEW.identification_status)//
+CREATE TRIGGER trg_patient_bu BEFORE UPDATE ON patient FOR EACH ROW
+  CALL chk_patient_identified(NEW.person_id, NEW.identification_status)//
+
+CREATE PROCEDURE chk_location_free(IN p_id BIGINT UNSIGNED, IN p_enc BIGINT UNSIGNED,
+                                   IN p_loc BIGINT UNSIGNED, IN p_start DATETIME, IN p_end DATETIME)
+BEGIN
+  IF (SELECT type FROM location WHERE id = p_loc) IN ('BED','BOX')
+     AND EXISTS (SELECT 1 FROM encounter_location el
+                 WHERE el.location_id = p_loc
+                   AND el.id <> COALESCE(p_id, 0)
+                   AND el.period_start < COALESCE(p_end, '9999-12-31')
+                   AND COALESCE(el.period_end, '9999-12-31') > p_start) THEN
+    SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'C7: bed/box already occupied';
+  END IF;
+  IF EXISTS (SELECT 1 FROM encounter_location el
+              WHERE el.encounter_id = p_enc
+                AND el.id <> COALESCE(p_id, 0)
+                AND el.period_start < COALESCE(p_end, '9999-12-31')
+                AND COALESCE(el.period_end, '9999-12-31') > p_start) THEN
+    SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'patient already has a location for this period';
+  END IF;
+END//
+CREATE TRIGGER trg_el_bi BEFORE INSERT ON encounter_location FOR EACH ROW
+  CALL chk_location_free(NULL, NEW.encounter_id, NEW.location_id, NEW.period_start, NEW.period_end)//
+CREATE TRIGGER trg_el_bu BEFORE UPDATE ON encounter_location FOR EACH ROW
+  CALL chk_location_free(NEW.id, NEW.encounter_id, NEW.location_id, NEW.period_start, NEW.period_end)//
+
+CREATE PROCEDURE chk_appt_service_type(IN p_req UUID, IN p_act BIGINT UNSIGNED)
+BEGIN
+  DECLARE v_code BIGINT UNSIGNED;
+  IF p_req IS NOT NULL THEN
+    SELECT activity_definition_id INTO v_code FROM service_request WHERE request_id = p_req;
+    IF v_code IS NOT NULL AND NOT (p_act <=> v_code) THEN
+      SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'C18: serviceType must equal basedOn.code';
+    END IF;
+  END IF;
+END//
+CREATE TRIGGER trg_appt_bi BEFORE INSERT ON appointment FOR EACH ROW
+  CALL chk_appt_service_type(NEW.request_id, NEW.activity_definition_id)//
+CREATE TRIGGER trg_appt_bu BEFORE UPDATE ON appointment FOR EACH ROW
+  CALL chk_appt_service_type(NEW.request_id, NEW.activity_definition_id)//
+
+CREATE PROCEDURE chk_proc_fulfills(IN p_appt UUID, IN p_req UUID, IN p_act BIGINT UNSIGNED)
+BEGIN
+  DECLARE v_req UUID;
+  DECLARE v_act BIGINT UNSIGNED;
+  IF p_appt IS NOT NULL THEN
+    SELECT request_id, activity_definition_id INTO v_req, v_act
+      FROM appointment WHERE id = p_appt;
+    IF (v_act IS NOT NULL AND v_act <> p_act)
+       OR (v_req IS NOT NULL AND NOT (v_req <=> p_req)) THEN
+      SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'C21: procedure inconsistent with fulfilled appointment';
+    END IF;
+  END IF;
+END//
+CREATE TRIGGER trg_proc_bi BEFORE INSERT ON clinical_procedure FOR EACH ROW
+  CALL chk_proc_fulfills(NEW.appointment_id, NEW.request_id, NEW.activity_definition_id)//
+CREATE TRIGGER trg_proc_bu BEFORE UPDATE ON clinical_procedure FOR EACH ROW
+  CALL chk_proc_fulfills(NEW.appointment_id, NEW.request_id, NEW.activity_definition_id)//
+
+CREATE TRIGGER trg_cp_bu BEFORE UPDATE ON care_plan FOR EACH ROW
+BEGIN
+  IF NEW.validation_status = 'VALIDATED'
+     AND NOT EXISTS (SELECT 1 FROM request WHERE care_plan_id = NEW.id) THEN
+    SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'C11: validated care plan needs activities';
+  END IF;
+END//
+CREATE TRIGGER trg_cp_bi BEFORE INSERT ON care_plan FOR EACH ROW
+BEGIN
+  IF NEW.validation_status = 'VALIDATED' THEN
+    SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'C11: insert PENDING, then validate';
+  END IF;
+END//
+
+CREATE PROCEDURE chk_mr_weight(IN p_req UUID, IN p_vs BIGINT UNSIGNED)
+BEGIN
+  IF p_vs IS NOT NULL AND NOT EXISTS (
+       SELECT 1 FROM vital_signs v JOIN request r ON r.id = p_req
+        WHERE v.id = p_vs AND v.patient_id = r.patient_id
+          AND v.weight_kg IS NOT NULL AND v.status <> 'entered-in-error'
+          AND v.effective_at <= r.authored_on) THEN
+    SIGNAL SQLSTATE '45000'
+      SET MESSAGE_TEXT = 'weightUsed must be a valid prior weight of the same patient';
+  END IF;
+END//
+CREATE TRIGGER trg_mr_bi BEFORE INSERT ON medication_request FOR EACH ROW
+  CALL chk_mr_weight(NEW.request_id, NEW.weight_vital_signs_id)//
+CREATE TRIGGER trg_mr_bu BEFORE UPDATE ON medication_request FOR EACH ROW
+  CALL chk_mr_weight(NEW.request_id, NEW.weight_vital_signs_id)//
+
+CREATE PROCEDURE chk_admission_weight(IN p_enc BIGINT UNSIGNED, IN p_status VARCHAR(16))
+BEGIN
+  IF p_status = 'COMPLETE' AND NOT EXISTS (
+       SELECT 1 FROM vital_signs
+        WHERE encounter_id = p_enc AND weight_kg IS NOT NULL
+          AND status <> 'entered-in-error') THEN
+    SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'C8: admission weight required before COMPLETE';
+  END IF;
+END//
+CREATE TRIGGER trg_hosp_bi BEFORE INSERT ON hospitalization FOR EACH ROW
+  CALL chk_admission_weight(NEW.encounter_id, NEW.admission_status)//
+CREATE TRIGGER trg_hosp_bu BEFORE UPDATE ON hospitalization FOR EACH ROW
+  CALL chk_admission_weight(NEW.encounter_id, NEW.admission_status)//
 
 CREATE PROCEDURE get_daily_schedule(IN p_patient BIGINT UNSIGNED, IN p_day DATE)
 BEGIN
