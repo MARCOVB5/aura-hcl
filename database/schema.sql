@@ -49,7 +49,9 @@ CREATE TABLE person_telecom (
   id        BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
   person_id BIGINT UNSIGNED NOT NULL,
   system    ENUM('phone','fax','email','pager','url','sms','other') NOT NULL,
-  value     VARCHAR(255) NOT NULL
+  value     VARCHAR(255) NOT NULL,
+  CONSTRAINT fk_telecom_person FOREIGN KEY (person_id)
+    REFERENCES person(id) ON DELETE CASCADE
 ) ENGINE=InnoDB;
 
 -- ------------------------------------------------------------
@@ -59,20 +61,25 @@ CREATE TABLE organization (
   id         BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
   name       VARCHAR(255) NOT NULL,
   active     BOOLEAN NOT NULL DEFAULT TRUE,
-  part_of_id BIGINT UNSIGNED NULL
+  part_of_id BIGINT UNSIGNED NULL,
+  CONSTRAINT fk_org_part_of FOREIGN KEY (part_of_id) REFERENCES organization(id)
 ) ENGINE=InnoDB;
 
 CREATE TABLE practitioner (
   id        BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
   person_id BIGINT UNSIGNED NOT NULL,
-  active    BOOLEAN NOT NULL DEFAULT TRUE
+  active    BOOLEAN NOT NULL DEFAULT TRUE,
+  CONSTRAINT fk_practitioner_person FOREIGN KEY (person_id) REFERENCES person(id),
+  UNIQUE KEY uq_practitioner_person (person_id)
 ) ENGINE=InnoDB;
 
 CREATE TABLE practitioner_identifier (
   id              BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
   practitioner_id BIGINT UNSIGNED NOT NULL,
   system          VARCHAR(255) NULL,
-  value           VARCHAR(128) NOT NULL
+  value           VARCHAR(128) NOT NULL,
+  CONSTRAINT fk_prac_ident FOREIGN KEY (practitioner_id)
+    REFERENCES practitioner(id) ON DELETE CASCADE
 ) ENGINE=InnoDB;
 
 CREATE TABLE practitioner_role (
@@ -85,7 +92,9 @@ CREATE TABLE practitioner_role (
   specialty       VARCHAR(128) NULL,
   practitioner_category   ENUM('PHYSICIAN','PARAMEDICAL') NOT NULL,
   practitioner_profession ENUM('PHYSICIAN','NURSE','CARE_ASSISTANT',
-                               'PHYSIOTHERAPIST','OTHER') NOT NULL
+                               'PHYSIOTHERAPIST','OTHER') NOT NULL,
+  CONSTRAINT fk_role_practitioner FOREIGN KEY (practitioner_id) REFERENCES practitioner(id),
+  CONSTRAINT fk_role_organization FOREIGN KEY (organization_id) REFERENCES organization(id)
 ) ENGINE=InnoDB;
 
 -- ------------------------------------------------------------
@@ -102,13 +111,18 @@ CREATE TABLE user_account (
   person_id     BIGINT UNSIGNED NOT NULL,
   login         VARCHAR(64)  NOT NULL UNIQUE,
   password_hash VARCHAR(255) NOT NULL,
-  active        BOOLEAN NOT NULL DEFAULT TRUE
+  active        BOOLEAN NOT NULL DEFAULT TRUE,
+  CONSTRAINT fk_user_person FOREIGN KEY (person_id) REFERENCES person(id),
+  UNIQUE KEY uq_user_person (person_id)
 ) ENGINE=InnoDB;
 
 CREATE TABLE user_account_role (
   user_account_id BIGINT UNSIGNED NOT NULL,
   app_role_id     BIGINT UNSIGNED NOT NULL,
-  PRIMARY KEY (user_account_id, app_role_id)
+  PRIMARY KEY (user_account_id, app_role_id),
+  CONSTRAINT fk_uar_user FOREIGN KEY (user_account_id)
+    REFERENCES user_account(id) ON DELETE CASCADE,
+  CONSTRAINT fk_uar_role FOREIGN KEY (app_role_id) REFERENCES app_role(id)
 ) ENGINE=InnoDB;
 
 -- ------------------------------------------------------------
@@ -120,13 +134,18 @@ CREATE TABLE patient (
   ipp                   VARCHAR(32) NULL,
   identification_status ENUM('IDENTIFIED','PROVISIONAL','UNKNOWN') NOT NULL,
   active                BOOLEAN NOT NULL DEFAULT TRUE,
+  CONSTRAINT fk_patient_person FOREIGN KEY (person_id) REFERENCES person(id),
+  UNIQUE KEY uq_patient_person (person_id),
   UNIQUE KEY uq_patient_ipp (ipp)
 ) ENGINE=InnoDB;
 
 CREATE TABLE patient_general_practitioner (
   patient_id      BIGINT UNSIGNED NOT NULL,
   practitioner_id BIGINT UNSIGNED NOT NULL,
-  PRIMARY KEY (patient_id, practitioner_id)
+  PRIMARY KEY (patient_id, practitioner_id),
+  CONSTRAINT fk_pgp_patient FOREIGN KEY (patient_id)
+    REFERENCES patient(id) ON DELETE CASCADE,
+  CONSTRAINT fk_pgp_practitioner FOREIGN KEY (practitioner_id) REFERENCES practitioner(id)
 ) ENGINE=InnoDB;
 
 CREATE TABLE related_person (
@@ -134,7 +153,9 @@ CREATE TABLE related_person (
   person_id    BIGINT UNSIGNED NOT NULL,
   patient_id   BIGINT UNSIGNED NOT NULL,
   relationship VARCHAR(64) NULL,
-  active       BOOLEAN NOT NULL DEFAULT TRUE
+  active       BOOLEAN NOT NULL DEFAULT TRUE,
+  CONSTRAINT fk_rp_person  FOREIGN KEY (person_id)  REFERENCES person(id),
+  CONSTRAINT fk_rp_patient FOREIGN KEY (patient_id) REFERENCES patient(id) ON DELETE CASCADE
 ) ENGINE=InnoDB;
 
 CREATE TABLE allergen (
@@ -151,7 +172,10 @@ CREATE TABLE pathology (
   allergen_id         BIGINT UNSIGNED NULL,
   name                VARCHAR(255) NULL,
   active              BOOLEAN NOT NULL DEFAULT TRUE,
-  note                TEXT NULL
+  note                TEXT NULL,
+  CONSTRAINT fk_patho_patient  FOREIGN KEY (patient_id) REFERENCES patient(id),
+  CONSTRAINT fk_patho_type     FOREIGN KEY (pathology_type_code) REFERENCES pathology_type(code),
+  CONSTRAINT fk_patho_allergen FOREIGN KEY (allergen_id) REFERENCES allergen(id)
 ) ENGINE=InnoDB;
 
 CREATE TABLE location (
@@ -160,7 +184,8 @@ CREATE TABLE location (
   code            VARCHAR(32)  NOT NULL,
   name            VARCHAR(128) NOT NULL,
   type            ENUM('ROOM','BED','BOX') NOT NULL,
-  UNIQUE KEY uq_location_code (organization_id, code)
+  UNIQUE KEY uq_location_code (organization_id, code),
+  CONSTRAINT fk_loc_organization FOREIGN KEY (organization_id) REFERENCES organization(id)
 ) ENGINE=InnoDB;
 
 CREATE TABLE encounter (
@@ -175,13 +200,18 @@ CREATE TABLE encounter (
   actual_discharge_date   DATETIME NULL,
   reason                  VARCHAR(255) NULL,
   service_provider_id     BIGINT UNSIGNED NULL,
-  UNIQUE KEY uq_encounter_stay_number (stay_number)
+  UNIQUE KEY uq_encounter_stay_number (stay_number),
+  CONSTRAINT fk_enc_patient  FOREIGN KEY (patient_id) REFERENCES patient(id),
+  CONSTRAINT fk_enc_type     FOREIGN KEY (encounter_type_code) REFERENCES encounter_type(code),
+  CONSTRAINT fk_enc_provider FOREIGN KEY (service_provider_id) REFERENCES organization(id)
 ) ENGINE=InnoDB;
 
 CREATE TABLE hospitalization (
   encounter_id            BIGINT UNSIGNED PRIMARY KEY,
   admission_status        ENUM('IN_PROGRESS','COMPLETE') NOT NULL DEFAULT 'IN_PROGRESS',
-  assessment_completed_at DATETIME NULL
+  assessment_completed_at DATETIME NULL,
+  CONSTRAINT fk_hosp_encounter FOREIGN KEY (encounter_id)
+    REFERENCES encounter(id) ON DELETE CASCADE
 ) ENGINE=InnoDB;
 
 CREATE TABLE encounter_participant (
@@ -190,7 +220,10 @@ CREATE TABLE encounter_participant (
   practitioner_id BIGINT UNSIGNED NOT NULL,
   type            VARCHAR(64) NULL,
   period_start    DATETIME NULL,
-  period_end      DATETIME NULL
+  period_end      DATETIME NULL,
+  CONSTRAINT fk_ep_encounter FOREIGN KEY (encounter_id)
+    REFERENCES encounter(id) ON DELETE CASCADE,
+  CONSTRAINT fk_ep_practitioner FOREIGN KEY (practitioner_id) REFERENCES practitioner(id)
 ) ENGINE=InnoDB;
 
 CREATE TABLE encounter_location (
@@ -199,7 +232,10 @@ CREATE TABLE encounter_location (
   location_id  BIGINT UNSIGNED NOT NULL,
   period_start DATETIME NOT NULL,
   period_end   DATETIME NULL,
-  KEY ix_el_location (location_id, period_start)
+  KEY ix_el_location (location_id, period_start),
+  CONSTRAINT fk_el_encounter FOREIGN KEY (encounter_id)
+    REFERENCES encounter(id) ON DELETE CASCADE,
+  CONSTRAINT fk_el_location  FOREIGN KEY (location_id) REFERENCES location(id)
 ) ENGINE=InnoDB;
 
 CREATE TABLE vital_signs (
@@ -214,7 +250,10 @@ CREATE TABLE vital_signs (
   height_cm       DECIMAL(5,1) NULL,
   bmi             DECIMAL(5,2) AS (weight_kg / POWER(height_cm / 100, 2)) VIRTUAL,
   note            VARCHAR(255) NULL,
-  KEY ix_vs_latest (patient_id, effective_at)
+  KEY ix_vs_latest (patient_id, effective_at),
+  CONSTRAINT fk_vs_patient   FOREIGN KEY (patient_id) REFERENCES patient(id),
+  CONSTRAINT fk_vs_encounter FOREIGN KEY (encounter_id) REFERENCES encounter(id),
+  CONSTRAINT fk_vs_recorder  FOREIGN KEY (recorded_by_id) REFERENCES practitioner(id)
 ) ENGINE=InnoDB;
 
 -- ------------------------------------------------------------
@@ -232,7 +271,8 @@ CREATE TABLE medication_definition (
   code             VARCHAR(32)  NOT NULL UNIQUE,
   molecule         VARCHAR(255) NOT NULL,
   brand_name       VARCHAR(255) NULL,
-  dosage_form_code VARCHAR(32)  NULL
+  dosage_form_code VARCHAR(32)  NULL,
+  CONSTRAINT fk_med_dosage_form FOREIGN KEY (dosage_form_code) REFERENCES dosage_form(code)
 ) ENGINE=InnoDB;
 
 CREATE TABLE evaluation (
@@ -242,7 +282,10 @@ CREATE TABLE evaluation (
   practitioner_id BIGINT UNSIGNED NOT NULL,
   status          ENUM('in-progress','completed','entered-in-error') NOT NULL DEFAULT 'in-progress',
   effective_at    DATETIME NOT NULL,
-  summary         TEXT NULL
+  summary         TEXT NULL,
+  CONSTRAINT fk_eval_patient      FOREIGN KEY (patient_id) REFERENCES patient(id),
+  CONSTRAINT fk_eval_encounter    FOREIGN KEY (encounter_id) REFERENCES encounter(id),
+  CONSTRAINT fk_eval_practitioner FOREIGN KEY (practitioner_id) REFERENCES practitioner(id)
 ) ENGINE=InnoDB;
 
 CREATE TABLE care_plan (
@@ -259,7 +302,12 @@ CREATE TABLE care_plan (
   title             VARCHAR(255) NULL,
   description       TEXT NULL,
   created           DATETIME NULL DEFAULT CURRENT_TIMESTAMP,
-  validated_at      DATETIME NULL
+  validated_at      DATETIME NULL,
+  CONSTRAINT fk_cp_patient   FOREIGN KEY (patient_id) REFERENCES patient(id),
+  CONSTRAINT fk_cp_encounter FOREIGN KEY (encounter_id) REFERENCES encounter(id),
+  CONSTRAINT fk_cp_evaluation FOREIGN KEY (evaluation_id) REFERENCES evaluation(id),
+  CONSTRAINT fk_cp_author    FOREIGN KEY (author_id) REFERENCES practitioner(id),
+  CONSTRAINT fk_cp_validator FOREIGN KEY (validator_id) REFERENCES user_account(id)
 ) ENGINE=InnoDB;
 
 CREATE TABLE request (
@@ -278,26 +326,37 @@ CREATE TABLE request (
   timing_bounds_end   DATETIME NULL,
   timing_frequency    INT UNSIGNED NULL,
   timing_period       DECIMAL(10,3) NULL,
-  timing_period_unit  ENUM('s','min','h','d','wk','mo','a') NULL
+  timing_period_unit  ENUM('s','min','h','d','wk','mo','a') NULL,
+  UNIQUE KEY uq_req_type    (id, request_type),
+  CONSTRAINT fk_req_patient   FOREIGN KEY (patient_id) REFERENCES patient(id),
+  CONSTRAINT fk_req_encounter FOREIGN KEY (encounter_id) REFERENCES encounter(id),
+  CONSTRAINT fk_req_requester FOREIGN KEY (requester_id) REFERENCES practitioner(id),
+  CONSTRAINT fk_req_cp_patient FOREIGN KEY (care_plan_id) REFERENCES care_plan(id)
 ) ENGINE=InnoDB;
 
 CREATE TABLE request_timing_event (
   request_id UUID NOT NULL,
   event_at   DATETIME NOT NULL,
-  PRIMARY KEY (request_id, event_at)
+  PRIMARY KEY (request_id, event_at),
+  CONSTRAINT fk_rte_request FOREIGN KEY (request_id) REFERENCES request(id) ON DELETE CASCADE
 ) ENGINE=InnoDB;
 
 CREATE TABLE request_timing_time_of_day (
   request_id  UUID NOT NULL,
   time_of_day TIME NOT NULL,
-  PRIMARY KEY (request_id, time_of_day)
+  PRIMARY KEY (request_id, time_of_day),
+  CONSTRAINT fk_rtt_request FOREIGN KEY (request_id) REFERENCES request(id) ON DELETE CASCADE
 ) ENGINE=InnoDB;
 
 CREATE TABLE service_request (
   request_id             UUID NOT NULL PRIMARY KEY,
   request_type           ENUM('SERVICE','MEDICATION') NOT NULL DEFAULT 'SERVICE',
   activity_definition_id BIGINT UNSIGNED NOT NULL,
-  parameters             TEXT NULL
+  parameters             TEXT NULL,
+  CONSTRAINT fk_sr_request FOREIGN KEY (request_id, request_type)
+    REFERENCES request(id, request_type) ON DELETE CASCADE,
+  CONSTRAINT fk_sr_activity FOREIGN KEY (activity_definition_id)
+    REFERENCES activity_definition(id)
 ) ENGINE=InnoDB;
 
 CREATE TABLE medication_request (
@@ -308,7 +367,14 @@ CREATE TABLE medication_request (
   dose_unit                VARCHAR(32) NULL,
   administration_route_code VARCHAR(32) NULL,
   dosage_text              TEXT NULL,
-  weight_vital_signs_id    BIGINT UNSIGNED NULL
+  weight_vital_signs_id    BIGINT UNSIGNED NULL,
+  CONSTRAINT fk_mr_weight FOREIGN KEY (weight_vital_signs_id) REFERENCES vital_signs(id),
+  CONSTRAINT fk_mr_request FOREIGN KEY (request_id, request_type)
+    REFERENCES request(id, request_type) ON DELETE CASCADE,
+  CONSTRAINT fk_mr_medication FOREIGN KEY (medication_definition_id)
+    REFERENCES medication_definition(id),
+  CONSTRAINT fk_mr_route FOREIGN KEY (administration_route_code)
+    REFERENCES administration_route(code)
 ) ENGINE=InnoDB;
 
 CREATE TABLE appointment (
@@ -322,7 +388,14 @@ CREATE TABLE appointment (
   created                  DATETIME NULL DEFAULT CURRENT_TIMESTAMP,
   status                   ENUM('PLANNED','CANCELLED','DONE') NOT NULL DEFAULT 'PLANNED',
   parameters               TEXT NULL,
-  KEY ix_appt_agenda (patient_id, scheduled_at)
+  KEY ix_appt_agenda (patient_id, scheduled_at),
+  CONSTRAINT fk_appt_patient   FOREIGN KEY (patient_id) REFERENCES patient(id),
+  CONSTRAINT fk_appt_encounter FOREIGN KEY (encounter_id) REFERENCES encounter(id),
+  CONSTRAINT fk_appt_request   FOREIGN KEY (request_id) REFERENCES request(id),
+  CONSTRAINT fk_appt_activity  FOREIGN KEY (activity_definition_id)
+    REFERENCES activity_definition(id),
+  CONSTRAINT fk_appt_practitioner FOREIGN KEY (assigned_practitioner_id)
+    REFERENCES practitioner(id)
 ) ENGINE=InnoDB;
 
 CREATE TABLE clinical_procedure (
@@ -336,13 +409,23 @@ CREATE TABLE clinical_procedure (
                               'stopped','completed','entered-in-error','unknown') NOT NULL,
   performed_start        DATETIME NULL,
   performed_end          DATETIME NULL,
-  note                   TEXT NULL
+  note                   TEXT NULL,
+  UNIQUE KEY uq_proc_appointment (appointment_id),
+  CONSTRAINT fk_proc_patient   FOREIGN KEY (patient_id) REFERENCES patient(id),
+  CONSTRAINT fk_proc_encounter FOREIGN KEY (encounter_id) REFERENCES encounter(id),
+  CONSTRAINT fk_proc_request   FOREIGN KEY (request_id) REFERENCES request(id),
+  CONSTRAINT fk_proc_appt      FOREIGN KEY (appointment_id) REFERENCES appointment(id),
+  CONSTRAINT fk_proc_activity  FOREIGN KEY (activity_definition_id)
+    REFERENCES activity_definition(id)
 ) ENGINE=InnoDB;
 
 CREATE TABLE procedure_performer (
   procedure_id    BIGINT UNSIGNED NOT NULL,
   practitioner_id BIGINT UNSIGNED NOT NULL,
-  PRIMARY KEY (procedure_id, practitioner_id)
+  PRIMARY KEY (procedure_id, practitioner_id),
+  CONSTRAINT fk_pp_procedure FOREIGN KEY (procedure_id)
+    REFERENCES clinical_procedure(id) ON DELETE CASCADE,
+  CONSTRAINT fk_pp_practitioner FOREIGN KEY (practitioner_id) REFERENCES practitioner(id)
 ) ENGINE=InnoDB;
 
 DELIMITER //
