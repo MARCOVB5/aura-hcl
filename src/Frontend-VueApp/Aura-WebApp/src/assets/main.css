@@ -1,6 +1,31 @@
+/* Design tokens from the Figma file "IHM projet aura" */
 :root {
-  font-family: system-ui, sans-serif;
-  color: #222;
+  --color-primary: #6462b5;
+  --color-primary-hover: #57559f;
+  --color-primary-soft: #efeef9;
+  --color-text: #27292f;
+  --color-text-muted: #747780;
+  --color-text-faint: #79747e;
+  --color-border: #e9eaee;
+  --color-border-strong: #c2c4cf;
+  --color-sidebar: #fafafb;
+  --color-surface-muted: #f7f8fa;
+  --color-table-header: #fcfcfd;
+  --color-avatar: #f1f2f4;
+  --color-disabled: #e5e5ed;
+  --color-disabled-text: #80828f;
+  --color-success-soft: #eaf7ee;
+  --color-success: #1f8f4d;
+  --color-danger: #c4262e;
+  --color-danger-soft: #fdf1f1;
+  --color-danger-border: #f3caca;
+
+  --radius: 6px;
+  --radius-card: 8px;
+
+  font-family: 'Inter', system-ui, sans-serif;
+  font-size: 13px;
+  color: var(--color-text);
   background: #fff;
   font-synthesis: none;
   text-rendering: optimizeLegibility;
@@ -19,6 +44,224 @@ body {
   margin: 0;
 }
 
-main {
-  padding: 2rem;
+button,
+input,
+textarea {
+  font: inherit;
+  color: inherit;
+}
+
+/* ---- Page layout ---- */
+
+.page-header {
+  padding: 0 32px;
+}
+
+.service-name {
+  display: flex;
+  align-items: center;
+  height: 80px;
+  margin: 0;
+  font-size: 20px;
+  font-weight: 600;
+  letter-spacing: -0.5px;
+}
+
+.title-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  min-height: 104px;
+}
+
+.page-title {
+  margin: 0 0 8px;
+  font-size: 26px;
+  font-weight: 600;
+  letter-spacing: -0.8px;
+}
+
+.page-description {
+  margin: 0;
+  color: var(--color-text-muted);
+}
+
+.page-content {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  padding: 12px 32px 32px;
+}
+
+/* ---- Cards ---- */
+
+.card {
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-card);
+  background: #fff;
+}
+
+.card-header {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 20px 24px;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.card-title {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 600;
+}
+
+.card-description {
+  margin: 0;
+  color: var(--color-text-muted);
+}
+
+.card-body {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  padding: 24px;
+}
+
+/* ---- Buttons ---- */
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  height: 40px;
+  padding: 0 12px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  background: #fff;
+  color: var(--color-primary);
+  font-weight: 500;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.btn:hover:not(:disabled) {
+  background: var(--color-primary-soft);
+}
+
+.btn:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+.btn-primary {
+  padding: 0 16px;
+  border-color: var(--color-primary);
+  background: var(--color-primary);
+  color: #fff;
+  font-weight: 600;
+}
+
+.btn-primary:hover:not(:disabled) {
+  border-color: var(--color-primary-hover);
+  background: var(--color-primary-hover);
+}
+
+.btn-primary:disabled {
+  border-color: var(--color-disabled);
+  background: var(--color-disabled);
+  color: var(--color-disabled-text);
+  opacity: 1;
+}
+
+.btn-small {
+  height: 32px;
+  padding: 0 10px;
+  gap: 6px;
+}
+
+/* ---- Form fields ---- */
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+
+.field-label {
+  font-weight: 600;
+}
+
+.input {
+  width: 100%;
+  height: 44px;
+  padding: 0 12px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  background: #fff;
+  font-size: 14px;
+}
+
+textarea.input {
+  height: 88px;
+  padding: 12px;
+  resize: vertical;
+}
+
+.input::placeholder {
+  color: var(--color-text-muted);
+}
+
+.input:focus,
+.btn:focus-visible,
+.checkbox:focus-visible,
+.radio:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 1px;
+}
+
+.input:disabled {
+  background: var(--color-surface-muted);
+  color: var(--color-text-muted);
+}
+
+.checkbox,
+.radio {
+  width: 15px;
+  height: 15px;
+  margin: 0;
+  accent-color: var(--color-primary);
+  cursor: pointer;
+}
+
+/* ---- Notices ---- */
+
+.notice {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 10px 12px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  background: var(--color-surface-muted);
+  color: var(--color-text-muted);
+  line-height: 1.4;
+}
+
+.notice-error {
+  border-color: var(--color-danger-border);
+  background: var(--color-danger-soft);
+  color: var(--color-danger);
+}
+
+.muted {
+  color: var(--color-text-muted);
+}
+
+/* Allergies are always shown in red (requirement from the project brief) */
+.allergy {
+  color: var(--color-danger);
+  font-weight: 600;
 }
