@@ -22,6 +22,9 @@ class AllergyCategory(enum.Enum):
   ENVIRONMENT = "environment"
   BIOLOGIC = "biologic"
 
+# pathology_type.code of the allergies, the row is inserted at startup (app/db/seed.py)
+ALLERGY_TYPE_CODE = "ALLERGY"
+
 class PathologyType(Base):
   __tablename__ = "pathology_type"
 
@@ -32,7 +35,7 @@ class Allergen(Base):
   __tablename__ = "allergen"
 
   id : Mapped[int] = mapped_column(ID, primary_key=True, autoincrement=True)
-  code : Mapped[int] = mapped_column(String(32), unique = True)
+  code : Mapped[str] = mapped_column(String(32), unique = True)
   name : Mapped[str] = mapped_column(String(255))
   category : Mapped[AllergyCategory | None] = mapped_column(
     Enum(AllergyCategory, values_callable=enum_values)

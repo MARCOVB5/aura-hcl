@@ -29,7 +29,7 @@ class AdministrativeGender(enum.Enum):
   UNKNOWN = "unknown" #dont cancel me
 
 class ContactPoint(Base):
-  __tablename__ = "contact_point"
+  __tablename__ = "person_telecom"
 
   id : Mapped[int] = mapped_column(ID, primary_key=True, autoincrement=True)
   system : Mapped[ContactPointSystem] = mapped_column(Enum(ContactPointSystem, values_callable = enum_values))
@@ -43,7 +43,7 @@ class Person(Base):
   id : Mapped[int] = mapped_column(ID, primary_key=True, autoincrement = True)
   name_family : Mapped[str | None] = mapped_column(String(128))
   name_given : Mapped[str | None] = mapped_column(String(128))
-  birthDate : Mapped[datetime.date | None] = mapped_column(Date)
+  birth_date : Mapped[datetime.date | None] = mapped_column(Date)
   gender : Mapped[AdministrativeGender | None] = mapped_column(Enum(AdministrativeGender, values_callable = enum_values))
   address_line : Mapped[str | None] = mapped_column(String(255)) #check if it's necessary to put the whole address obj
 
