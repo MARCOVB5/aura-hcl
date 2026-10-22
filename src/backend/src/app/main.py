@@ -1,5 +1,5 @@
 from contextlib import asynccontextmanager
-from app.api.routes import patients
+from app.api.routes import hospitalizations, patients
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 
@@ -20,6 +20,7 @@ async def lifespan(app : FastAPI):
 app = FastAPI(title="SI Alpha", lifespan=lifespan)
 
 app.include_router(patients.router)
+app.include_router(hospitalizations.router)
 
 @app.exception_handler(AppError)
 async def handle_app_error(request : Request, exc : AppError):

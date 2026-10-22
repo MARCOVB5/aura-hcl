@@ -11,4 +11,4 @@ class Practitioner(Base):
 
   id : Mapped[int] = mapped_column(ID, primary_key=True, autoincrement=True)
   person_id : Mapped[int] = mapped_column(ID, ForeignKey("person.id"))
-  active : Mapped[bool] = mapped_column(Boolean, default =True, server_default=text("1"))
+  active : Mapped[bool] = mapped_column(Boolean, default =True, server_default=text("true"))

@@ -49,7 +49,7 @@ class Pathology(Base):
   pathology_type_code : Mapped[str] = mapped_column(String(32), ForeignKey("pathology_type.code"))
   allergen_id : Mapped[int | None] = mapped_column(ID, ForeignKey("allergen.id"))
   name : Mapped[str | None] = mapped_column(String(255))
-  active : Mapped[bool] = mapped_column(Boolean, default=True, server_default=text("1"))
+  active : Mapped[bool] = mapped_column(Boolean, default=True, server_default=text("true"))
   note : Mapped[str|None] = mapped_column(Text)
 
   # associations

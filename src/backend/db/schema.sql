@@ -146,7 +146,7 @@ CREATE TABLE encounter (
   patient_id              BIGINT UNSIGNED NOT NULL,
   status                  ENUM('planned','arrived','triaged','in-progress','onleave',
                                'finished','cancelled','entered-in-error','unknown') NOT NULL,
-  encounter_type_code     VARCHAR(32) NOT NULL,
+  encounter_type_code     ENUM('INPATIENT','OUTPATIENT','EMERGENCY') NOT NULL DEFAULT 'INPATIENT',
   admission_date          DATETIME NOT NULL,
   expected_discharge_date DATETIME NULL,
   actual_discharge_date   DATETIME NULL,
