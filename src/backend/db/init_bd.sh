@@ -4,7 +4,7 @@
 
 # Creates the database, the backend user and the .env file.
 # The tables are NOT created here: the backend creates them from the ORM models
-# (app/models) when it starts. schema.sql is only kept as a reference.
+# (app/models) when it starts. database/schema.sql (repo root) is only kept as a reference.
 #
 # Usage:
 #   ./init_bd.sh            # safe to re-run: never deletes data
