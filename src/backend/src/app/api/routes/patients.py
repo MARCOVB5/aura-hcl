@@ -1,7 +1,8 @@
 from fastapi import APIRouter, Query, status
 
-from app.deps import PatientManagementServiceDep
+from app.deps import HospitalizationManagementServiceDep, PatientManagementServiceDep
 from app.schemas.Allergy import AllergiesCreate, AllergyOut
+from app.schemas.Hospitalization import HospitalizationOut
 from app.schemas.Patient import PatientCreate, PatientOut
 
 router = APIRouter(prefix="/api/patients", tags =["patients"])
@@ -28,3 +29,11 @@ def add_allergies(
   service : PatientManagementServiceDep,
 ):
   return service.add_allergies(patient_id, data.allergies)
+
+
+@router.get("/{patient_id}/hospitalizations", response_model=list[HospitalizationOut])
+def get_hospitalizations_by_patient(
+  patient_id: int,
+  service: HospitalizationManagementServiceDep,
+):
+  return service.get_hospitalization_by_patient(patient_id)

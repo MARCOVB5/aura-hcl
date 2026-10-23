@@ -26,6 +26,16 @@ class HospitalizationDAO:
     )
     return self.session.scalar(stmt)
 
+  def get_by_patient(self, patient_id: int) -> list[Hospitalization]:
+    stmt = (
+      select(Hospitalization)
+      .join(Hospitalization.encounter)
+      .options(*_DETAIL_OPTIONS)
+      .where(Encounter.patient_id == patient_id)
+      .order_by(Hospitalization.encounter_id)
+    )
+    return list(self.session.scalars(stmt))
+
   def list_all(self, limit: int) -> list[Hospitalization]:
     stmt = (
       select(Hospitalization)
