@@ -2,10 +2,10 @@
 import { computed, onMounted, ref } from 'vue'
 import AppIcon from '../components/AppIcon.vue'
 import { listPatients } from '../api.js'
-import { formatDate, patientName } from '../format.js'
+import { formatDate, normalize, patientName } from '../format.js'
 
 const selected = defineModel('selected', { type: Object, default: null })
-const emit = defineEmits(['create'])
+const emit = defineEmits(['create', 'create-stay'])
 
 const patients = ref([])
 const loading = ref(true)
@@ -26,11 +26,6 @@ async function load() {
 onMounted(load)
 
 // filters on first name, last name or IPP, ignoring case and accents
-const normalize = (s) =>
-  (s ?? '')
-    .normalize('NFD')
-    .replace(/\p{Diacritic}/gu, '')
-    .toLowerCase()
 const filtered = computed(() => {
   const q = normalize(search.value.trim())
   if (!q) return patients.value
@@ -141,12 +136,7 @@ const countLabel = computed(() => {
     </table>
 
     <div v-if="selected">
-      <button
-        type="button"
-        class="btn btn-small"
-        disabled
-        title="Disponible avec la nouvelle admission"
-      >
+      <button type="button" class="btn btn-small" @click="emit('create-stay', selected)">
         <AppIcon name="plus" :size="14" />
         Créer un séjour pour {{ patientName(selected) || 'ce patient' }}
       </button>
@@ -199,75 +189,5 @@ const countLabel = computed(() => {
 
 .retry {
   margin-left: auto;
-}
-
-.table {
-  width: 100%;
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius);
-  border-collapse: separate;
-  border-spacing: 0;
-  overflow: hidden;
-}
-
-th,
-td {
-  padding: 0 20px;
-  border-bottom: 1px solid var(--color-border);
-  text-align: left;
-}
-
-tbody tr:last-child td {
-  border-bottom: none;
-}
-
-th {
-  height: 42px;
-  background: var(--color-table-header);
-  color: var(--color-text-muted);
-  font-size: 12px;
-  font-weight: 500;
-}
-
-td {
-  height: 68px;
-}
-
-tbody tr:not(:has(.empty)) {
-  cursor: pointer;
-}
-
-tbody tr:not(:has(.empty)):hover,
-tr.selected {
-  background: var(--color-primary-soft);
-}
-
-.col-patient {
-  width: 40%;
-}
-
-.col-id,
-.col-birth {
-  width: 20%;
-}
-
-.col-action {
-  text-align: right;
-}
-
-.patient-select {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  cursor: pointer;
-}
-
-.patient-name {
-  font-size: 14px;
-  font-weight: 500;
-}
-
-.empty {
-  text-align: center;
 }
 </style>
