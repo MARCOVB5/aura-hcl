@@ -57,3 +57,8 @@ class HospitalizationManagementService:
     if hospitalization is None:
       raise NotFound("Hospitalization not found")
     return hospitalization
+
+  def get_hospitalization_by_patient(self, patient_id: int) -> list[Hospitalization]:
+    if self.patients.get(patient_id) is None:
+      raise NotFound("Patient not found")
+    return self.hospitalizations.get_by_patient(patient_id)
