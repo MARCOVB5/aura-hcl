@@ -48,3 +48,12 @@ class HospitalizationManagementService:
       raise
 
     return hospitalization
+
+  def list_hospitalizations(self, limit: int) -> list[Hospitalization]:
+    return self.hospitalizations.list_all(limit)
+
+  def get_hospitalization(self, encounter_id: int) -> Hospitalization:
+    hospitalization = self.hospitalizations.get(encounter_id)
+    if hospitalization is None:
+      raise NotFound("Hospitalization not found")
+    return hospitalization
