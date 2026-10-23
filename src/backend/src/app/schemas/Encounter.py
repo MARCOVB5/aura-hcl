@@ -3,11 +3,13 @@ from datetime import datetime
 from pydantic import BaseModel, ConfigDict, Field
 
 from app.models.encounter import EncounterStatus, EncounterTypeCode
-from app.schemas.Patient import PatientCreate, PatientOut
+from app.schemas.Patient import PatientOut
 
 
 class EncounterCreate(BaseModel):
-  patient: PatientCreate
+  model_config = ConfigDict(extra="forbid")
+
+  patient_id: int
   stay_number: str = Field(min_length=1, max_length=32)
   status: EncounterStatus
   encounter_type_code: EncounterTypeCode = EncounterTypeCode.INPATIENT

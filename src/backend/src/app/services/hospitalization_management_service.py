@@ -4,11 +4,10 @@ from sqlalchemy.orm import Session
 from app.dao.encounter_dao import EncounterDAO
 from app.dao.hospitalization_dao import HospitalizationDAO
 from app.dao.patient_dao import PatientDAO
-from app.errors import Conflict
+from app.errors import Conflict, NotFound
 from app.models.encounter import Encounter
 from app.models.hospitalization import Hospitalization
 from app.schemas.Hospitalization import HospitalizationCreate
-from app.services.patient_management_service import build_patient
 
 
 class HospitalizationManagementService:
@@ -26,13 +25,14 @@ class HospitalizationManagementService:
     self.hospitalizations = hospitalizations
 
   def create_hospitalization(self, data: HospitalizationCreate) -> Hospitalization:
-    patient_data = data.encounter.patient
+    patient = self.patients.get(data.encounter.patient_id)
+    if patient is None:
+      raise NotFound("Patient not found")
 
     try:
-      patient = self.patients.create(build_patient(patient_data))
       encounter = self.encounters.create(Encounter(
         patient=patient,
-        **data.encounter.model_dump(exclude={"patient"}),
+        **data.encounter.model_dump(exclude={"patient_id"}),
       ))
       hospitalization = self.hospitalizations.create(Hospitalization(
         encounter=encounter,
@@ -40,8 +40,6 @@ class HospitalizationManagementService:
       self.session.commit()
     except IntegrityError:
       self.session.rollback()
-      if patient_data.ipp is not None and self.patients.get_by_ipp(patient_data.ipp):
-        raise Conflict("IPP already registered")
       if self.encounters.get_by_stay_number(data.encounter.stay_number):
         raise Conflict("Stay number already registered")
       raise
@@ -49,6 +47,4 @@ class HospitalizationManagementService:
       self.session.rollback()
       raise
 
-    # The filtered allergies relationship is view-only; reload it after insertion.
-    self.session.refresh(patient, ["allergies"])
     return hospitalization
