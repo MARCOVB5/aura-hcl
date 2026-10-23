@@ -3,16 +3,22 @@ import { computed, reactive, ref } from 'vue'
 import AppIcon from '../components/AppIcon.vue'
 import { createPatient } from '../api.js'
 
+const props = defineProps({
+  // criteria typed in the admission search: { nameFamily, nameGiven, ipp, contact }
+  prefill: { type: Object, default: () => ({}) },
+  // opened from "Nouvelle admission": the stay form follows the creation
+  forAdmission: { type: Boolean, default: false },
+})
 const emit = defineEmits(['created', 'cancel'])
 
 const form = reactive({
-  nameFamily: '',
-  nameGiven: '',
+  nameFamily: props.prefill.nameFamily ?? '',
+  nameGiven: props.prefill.nameGiven ?? '',
   anonymous: false, // "Patient sous X": names become optional
-  sex: '',
+  gender: '',
   birthDate: '',
-  contact: '',
-  ipp: '',
+  contact: props.prefill.contact ?? '',
+  ipp: props.prefill.ipp ?? '',
   personalInfo: '',
   allergies: '',
 })
@@ -22,8 +28,14 @@ const error = ref('')
 const namesFilled = computed(() => form.nameFamily.trim() !== '' && form.nameGiven.trim() !== '')
 const canSubmit = computed(() => (form.anonymous || namesFilled.value) && !submitting.value)
 
+const fullName = computed(() => [form.nameGiven.trim(), form.nameFamily.trim()].join(' ').trim())
+
 // texts of the three states of the Figma frame "Formulaire créer patient"
 const pageDescription = computed(() => {
+  if (props.forAdmission) {
+    const who = fullName.value ? `de ${fullName.value}` : 'du patient'
+    return `Informations reprises de la recherche. Après validation, vous créerez le séjour ${who}.`
+  }
   if (form.anonymous) return 'Option Patient sous X cochée : nom et prénom deviennent facultatifs.'
   if (namesFilled.value)
     return 'Nom et prénom sont renseignés : le bouton Valider est désormais actif.'
@@ -35,6 +47,8 @@ const cardDescription = computed(() =>
     : 'Nom et prénom sont obligatoires, sauf si le patient est sous X.',
 )
 const statusText = computed(() => {
+  if (props.forAdmission && canSubmit.value)
+    return 'Valider crée le patient, puis ouvre la création de son séjour.'
   if (form.anonymous) return 'Patient sous X : aucun champ obligatoire.'
   if (namesFilled.value) return 'Tous les champs obligatoires sont renseignés.'
   return 'Renseignez le nom et le prénom pour continuer.'
@@ -55,12 +69,13 @@ async function submit() {
   submitting.value = true
   error.value = ''
   try {
-    // sex, contact and personal info are not accepted by the backend yet
+    // contact and personal info are not accepted by the backend yet
     const patient = await createPatient({
       person: {
         name_family: orNull(form.nameFamily),
         name_given: orNull(form.nameGiven),
         birth_date: form.birthDate || null,
+        gender: form.gender || 'unknown',
       },
       ipp: orNull(form.ipp),
       allergies: parseAllergies(form.allergies),
@@ -82,6 +97,9 @@ async function submit() {
         <h1 class="page-title">Créer un patient</h1>
         <p class="page-description">{{ pageDescription }}</p>
       </div>
+      <button v-if="forAdmission" type="button" class="btn btn-small" @click="emit('cancel')">
+        Retour à la recherche
+      </button>
     </div>
   </header>
 
@@ -124,14 +142,14 @@ async function submit() {
 
         <div class="row row-admin">
           <fieldset class="field sex">
-            <legend class="field-label">Sexe <span class="not-saved">non enregistré</span></legend>
+            <legend class="field-label">Sexe</legend>
             <div class="sex-options">
               <label class="inline-option">
-                <input v-model="form.sex" type="radio" value="F" class="radio" />
+                <input v-model="form.gender" type="radio" value="female" class="radio" />
                 <strong>F</strong>
               </label>
               <label class="inline-option">
-                <input v-model="form.sex" type="radio" value="M" class="radio" />
+                <input v-model="form.gender" type="radio" value="male" class="radio" />
                 <strong>M</strong>
               </label>
             </div>
@@ -188,7 +206,9 @@ async function submit() {
           <div class="actions">
             <span class="muted">{{ statusText }}</span>
             <div class="buttons">
-              <button type="button" class="btn" @click="emit('cancel')">Annuler</button>
+              <button v-if="!forAdmission" type="button" class="btn" @click="emit('cancel')">
+                Annuler
+              </button>
               <button type="submit" class="btn btn-primary" :disabled="!canSubmit">
                 {{ submitting ? 'Envoi…' : 'Valider' }}
               </button>
@@ -265,17 +285,5 @@ async function submit() {
   color: var(--color-text-muted);
   font-size: 11px;
   font-weight: 400;
-}
-
-.actions {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 16px;
-}
-
-.buttons {
-  display: flex;
-  gap: 12px;
 }
 </style>

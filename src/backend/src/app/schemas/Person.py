@@ -1,6 +1,6 @@
 import datetime
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from app.models.person import AdministrativeGender
 
@@ -26,3 +26,9 @@ class PersonOut(BaseModel):
     birth_date: datetime.date | None
     gender: AdministrativeGender = Field(default=AdministrativeGender.UNKNOWN)
     address_line: str | None = Field(default=None)
+
+    # persons created before the gender column was filled have NULL in the database
+    @field_validator("gender", mode="before")
+    @classmethod
+    def null_gender_is_unknown(cls, value):
+        return AdministrativeGender.UNKNOWN if value is None else value

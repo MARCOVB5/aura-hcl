@@ -43,6 +43,7 @@ it('sends the patient to the API and emits the created patient', async () => {
 
   await wrapper.get('input[placeholder="Ex. : Doe"]').setValue('  Doxa ')
   await wrapper.get('input[placeholder="Ex. : John"]').setValue('Loui')
+  await wrapper.get('input[value="female"]').setValue(true)
   await wrapper.get('input[type="date"]').setValue('1990-11-06')
   await wrapper.get('input[placeholder="Ex. : 123456789"]').setValue('123')
   await wrapper.findAll('textarea')[1].setValue('Pénicilline\nLatex, Iode')
@@ -53,11 +54,36 @@ it('sends the patient to the API and emits the created patient', async () => {
   expect(url).toMatch(/\/api\/patients$/)
   expect(options.method).toBe('POST')
   expect(JSON.parse(options.body)).toEqual({
-    person: { name_family: 'Doxa', name_given: 'Loui', birth_date: '1990-11-06' },
+    person: { name_family: 'Doxa', name_given: 'Loui', birth_date: '1990-11-06', gender: 'female' },
     ipp: '123',
     allergies: ['Pénicilline', 'Latex', 'Iode'],
   })
   expect(wrapper.emitted('created')[0]).toEqual([created])
+})
+
+it('sends gender "unknown" when no sex is chosen', async () => {
+  mockFetch(201, { id: 8, person: {}, allergies: [] })
+  const wrapper = mount(PatientFormView)
+
+  await wrapper.get('input[type="checkbox"]').setValue(true)
+  await wrapper.get('form').trigger('submit')
+  await flushPromises()
+
+  expect(JSON.parse(fetch.mock.calls[0][1].body).person.gender).toBe('unknown')
+})
+
+it('is prefilled from the admission search', async () => {
+  const wrapper = mount(PatientFormView, {
+    props: {
+      forAdmission: true,
+      prefill: { nameFamily: 'Delmas', nameGiven: 'Nora', ipp: 'IPP-1' },
+    },
+  })
+
+  expect(wrapper.get('input[placeholder="Ex. : Doe"]').element.value).toBe('Delmas')
+  expect(wrapper.get('input[placeholder="Ex. : 123456789"]').element.value).toBe('IPP-1')
+  expect(wrapper.text()).toContain('vous créerez le séjour de Nora Delmas')
+  expect(wrapper.text()).toContain('Valider crée le patient, puis ouvre la création de son séjour.')
 })
 
 it('shows the backend message when the IPP is already registered', async () => {

@@ -141,17 +141,4 @@ dd {
   font-weight: 600;
   text-align: right;
 }
-
-.actions {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 16px;
-  padding-top: 0;
-}
-
-.buttons {
-  display: flex;
-  gap: 12px;
-}
 </style>

@@ -42,3 +42,11 @@ export function listPatients(limit = 200) {
 export function createPatient(patient) {
   return request('/api/patients', { method: 'POST', body: JSON.stringify(patient) })
 }
+
+// creates the stay (encounter) and its hospitalization for an existing patient
+export function createHospitalization(encounter) {
+  return request('/api/hospitalizations', {
+    method: 'POST',
+    body: JSON.stringify({ encounter }),
+  })
+}
