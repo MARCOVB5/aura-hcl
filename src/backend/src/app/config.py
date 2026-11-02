@@ -1,7 +1,7 @@
 from pathlib import Path
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
-# src/backend/.env, written by db/init_bd.sh. Real environment variables take precedence over it.
+# src/backend/.env, should contain the env-vars in the sample .env.example
 ENV_FILE = Path(__file__).resolve().parents[2] / ".env"
 
 class Settings(BaseSettings):
@@ -12,4 +12,5 @@ class Settings(BaseSettings):
   # to override, set CORS_ORIGINS to a JSON list, e.g. CORS_ORIGINS='["http://localhost:4173"]'
   cors_origins : list[str] = ["http://localhost:5173", "http://127.0.0.1:5173"]
 
-settings = Settings()
+settings = Settings() # pyright : ignore[reportCallIssue]
+# it errors out because the BaseSettings will search for the db's url in the .env but the lsp forces you to give an argument for it, just ignore it;
