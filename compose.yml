@@ -1,0 +1,12 @@
+services:
+  db:
+    build: ./database
+    container_name: aura-db
+    ports:
+      - "127.0.0.1:3306:3306"
+    volumes:
+      - aura-db-data:/var/lib/mysql
+    restart: unless-stopped
+
+volumes:
+  aura-db-data:
