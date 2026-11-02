@@ -2,7 +2,7 @@
 import { computed, ref } from 'vue'
 import AppSidebar from './components/AppSidebar.vue'
 import AdmissionSearchView from './views/AdmissionSearchView.vue'
-import ComingSoonView from './views/ComingSoonView.vue'
+import CalendarView from './views/CalendarView.vue'
 import PatientCreatedView from './views/PatientCreatedView.vue'
 import PatientFormView from './views/PatientFormView.vue'
 import PatientsView from './views/PatientsView.vue'
@@ -16,6 +16,7 @@ import { patientName } from './format.js'
 const view = ref('patients')
 const selectedPatient = ref(null)
 const createdPatient = ref(null)
+const calendarOnlySelectedPatient = ref(false)
 
 const admissionCriteria = ref({})
 const stayPatient = ref(null)
@@ -65,6 +66,7 @@ function onHospitalizationCreated(hospitalization) {
   <div class="layout">
     <AppSidebar
       :section="section"
+      v-model:show-selected-patient="calendarOnlySelectedPatient"
       :selected-patient-name="selectedPatientName"
       @navigate="navigate"
     />
@@ -114,7 +116,11 @@ function onHospitalizationCreated(hospitalization) {
         @new-admission="navigate('admission')"
         @patients="view = 'patients'"
       />
-      <ComingSoonView v-else title="Calendrier" />
+      <CalendarView
+        v-else
+        :patient-filter="calendarOnlySelectedPatient ? selectedPatient : null"
+        @new-admission="navigate('admission')"
+      />
     </main>
   </div>
 </template>
