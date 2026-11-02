@@ -8,6 +8,7 @@ const BACKEND_MESSAGES = {
   'IPP already registered': 'Cet IPP est déjà attribué à un autre patient.',
   'Stay number already registered': 'Ce numéro de séjour existe déjà.',
   'Patient not found': 'Patient introuvable.',
+  'Hospitalization not found': 'Séjour introuvable.',
 }
 
 // The backend sends {"detail": "..."} for 404/409 and {"detail": [{msg, loc}, ...]} for 422
@@ -41,6 +42,11 @@ export function listPatients(limit = 200) {
 
 export function createPatient(patient) {
   return request('/api/patients', { method: 'POST', body: JSON.stringify(patient) })
+}
+
+// stays with their patient, ordered by encounter id
+export function listHospitalizations(limit = 200) {
+  return request(`/api/hospitalizations?limit=${limit}`)
 }
 
 // creates the stay (encounter) and its hospitalization for an existing patient

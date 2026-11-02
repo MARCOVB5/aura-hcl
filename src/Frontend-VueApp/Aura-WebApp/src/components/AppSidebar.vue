@@ -7,6 +7,8 @@ defineProps({
   selectedPatientName: { type: String, default: '' },
 })
 const emit = defineEmits(['navigate'])
+// "Du patient sélectionné": the calendar only shows the selected patient's stays
+const showSelectedPatient = defineModel('showSelectedPatient', { type: Boolean, default: false })
 
 const NAV_ITEMS = [
   { id: 'calendar', label: 'Calendrier', icon: 'calendar' },
@@ -14,10 +16,9 @@ const NAV_ITEMS = [
   { id: 'admission', label: 'Nouvelle Admission', icon: 'plus' },
 ]
 
-// calendar filters: no effect until the calendar exists
+// care calendars: no effect until care appointments exist in the backend
 const showServiceCare = ref(true)
 const showMyCare = ref(true)
-const showSelectedPatient = ref(false)
 </script>
 
 <template>
@@ -56,7 +57,13 @@ const showSelectedPatient = ref(false)
         Mes soins
       </label>
       <label class="calendar-option">
-        <input v-model="showSelectedPatient" type="checkbox" class="checkbox" />
+        <input
+          v-model="showSelectedPatient"
+          type="checkbox"
+          class="checkbox"
+          :disabled="!selectedPatientName"
+          title="Sélectionnez un patient dans la liste Patients"
+        />
         <span>
           Du patient sélectionné :<br />
           <strong>{{ selectedPatientName || 'aucun' }}</strong>
