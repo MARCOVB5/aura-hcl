@@ -5,7 +5,7 @@ import { listPatients } from '../api.js'
 import { formatDate, normalize, patientName } from '../format.js'
 
 const selected = defineModel('selected', { type: Object, default: null })
-const emit = defineEmits(['create', 'create-stay', 'open', 'edit'])
+const emit = defineEmits(['create', 'create-stay', 'open', 'edit', 'edit-stay'])
 
 const patients = ref([])
 const loading = ref(true)
@@ -59,12 +59,7 @@ const countLabel = computed(() => {
     <div class="toolbar">
       <label class="search">
         <AppIcon name="search" :size="16" class="muted" />
-        <input
-          v-model="search"
-          type="search"
-          placeholder="Rechercher un patient…"
-          aria-label="Rechercher un patient"
-        />
+        <input v-model="search" type="search" aria-label="Rechercher un patient" />
       </label>
       <span class="muted">{{ countLabel }}</span>
     </div>
@@ -129,10 +124,16 @@ const countLabel = computed(() => {
           <td class="col-id muted">{{ patient.ipp || 'Non renseigné' }}</td>
           <td class="col-birth">{{ formatDate(patient.person.birth_date) || '—' }}</td>
           <td class="col-action">
-            <button type="button" class="btn btn-small" @click.stop="emit('edit', patient)">
-              <AppIcon name="pencil" :size="14" />
-              Modifier
-            </button>
+            <div class="row-buttons">
+              <button type="button" class="btn btn-small" @click.stop="emit('edit', patient)">
+                <AppIcon name="pencil" :size="14" />
+                Modifier
+              </button>
+              <button type="button" class="btn btn-small" @click.stop="emit('edit-stay', patient)">
+                <AppIcon name="calendar" :size="14" />
+                Modifier le séjour
+              </button>
+            </div>
           </td>
         </tr>
       </tbody>
@@ -186,12 +187,13 @@ const countLabel = computed(() => {
   background: transparent;
 }
 
-.search input::placeholder {
-  color: var(--color-text-muted);
-}
-
 .retry {
   margin-left: auto;
+}
+
+.row-buttons {
+  display: inline-flex;
+  gap: 8px;
 }
 
 /* the name opens the patient record */

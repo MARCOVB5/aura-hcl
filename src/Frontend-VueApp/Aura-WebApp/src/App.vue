@@ -43,7 +43,8 @@ function navigate(target) {
 
 // ---- patients ----
 
-const openRecord = (patient) => go('patient-record', { patientId: patient.id })
+const openRecord = (patient, { editStays = false } = {}) =>
+  go('patient-record', { patientId: patient.id, editStays })
 
 // the calendar filtered on one patient ("Voir le calendrier", "Retour au calendrier")
 function openPatientCalendar(patient) {
@@ -56,17 +57,14 @@ function openPatientCalendar(patient) {
 
 // origin: where the stay form was opened from, to come back there
 //   'admission' (search), 'list' (patient list), 'record' (patient record), 'care' (care form)
-function openStayForm(
-  patient,
-  { origin = 'admission', justCreated = false, careDraft = null } = {},
-) {
+function openStayForm(patient, { origin = 'admission', careDraft = null } = {}) {
   const sections = {
     admission: 'admission',
     list: 'patients',
     record: 'patients',
     care: 'calendar',
   }
-  go('stay-form', { patient, origin, justCreated, careDraft, section: sections[origin] })
+  go('stay-form', { patient, origin, careDraft, section: sections[origin] })
 }
 
 function leaveStayForm() {
@@ -116,6 +114,7 @@ const editCare = (appointment) => go('care-form', { appointment })
         @create-stay="openStayForm($event, { origin: 'list' })"
         @open="openRecord"
         @edit="go('patient-edit', { patient: $event })"
+        @edit-stay="openRecord($event, { editStays: true })"
       />
       <PatientFormView
         v-else-if="page.name === 'patient-form'"
@@ -132,6 +131,7 @@ const editCare = (appointment) => go('care-form', { appointment })
         v-else-if="page.name === 'patient-record'"
         :key="page.patientId"
         :patient-id="page.patientId"
+        :edit-stays="page.editStays"
         @back="go('patients')"
         @edit="go('patient-edit', { patient: $event })"
         @add-stay="openStayForm($event, { origin: 'record' })"
@@ -161,14 +161,13 @@ const editCare = (appointment) => go('care-form', { appointment })
         v-else-if="page.name === 'admission-patient-form'"
         for-admission
         :prefill="admissionCriteria"
-        @created="openStayForm($event, { justCreated: true })"
+        @created="openStayForm($event)"
         @cancel="go('admission')"
       />
       <StayFormView
         v-else-if="page.name === 'stay-form'"
         :key="`stay-${page.patient.id}`"
         :patient="page.patient"
-        :patient-just-created="page.justCreated"
         :for-care="page.origin === 'care'"
         :back-label="stayBackLabel[page.origin]"
         @created="onStayCreated"

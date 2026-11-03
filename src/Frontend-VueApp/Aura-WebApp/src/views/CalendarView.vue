@@ -141,7 +141,7 @@ function stayLabel(stay) {
   const period = end
     ? `du ${start} au ${formatDate(end.slice(0, 10))}`
     : `en cours depuis le ${start}`
-  return [`Séjour ${period}`, stay.current_location?.name].filter(Boolean).join(' · ')
+  return [`Séjour ${period}`, stay.location].filter(Boolean).join(' · ')
 }
 
 function bandsOf(week) {
@@ -295,7 +295,7 @@ function whenLong(a) {
         <strong>{{ patientName(opened.patient) || 'Patient sous X' }}</strong>
         <span v-if="opened.patient.ipp" class="muted"> · {{ opened.patient.ipp }}</span>
       </p>
-      <p v-if="opened.encounter.current_location">{{ opened.encounter.current_location.name }}</p>
+      <p v-if="opened.encounter.location">{{ opened.encounter.location }}</p>
       <p v-if="opened.patient.allergies.length" class="allergy">
         Allergies : {{ opened.patient.allergies.map((a) => a.name).join(', ') }}
       </p>

@@ -12,10 +12,7 @@ const emit = defineEmits(['back', 'calendar'])
   <header class="page-header">
     <h2 class="service-name">Service de réanimation</h2>
     <div class="title-row">
-      <div>
-        <h1 class="page-title">Créer un patient</h1>
-        <p class="page-description">Le patient a bien été créé.</p>
-      </div>
+      <h1 class="page-title">Créer un patient</h1>
     </div>
   </header>
 
@@ -23,15 +20,13 @@ const emit = defineEmits(['back', 'calendar'])
     <section class="card">
       <div class="card-header">
         <h2 class="card-title">Confirmation</h2>
-        <p class="card-description">Le dossier patient a été créé avec succès.</p>
       </div>
 
       <div class="card-body">
         <div class="success" role="status">
           <span class="success-icon"><AppIcon name="check" :size="16" /></span>
           <div>
-            <p class="success-title">Patient créé avec succès</p>
-            <p class="muted">Le dossier est désormais disponible dans la liste des patients.</p>
+            <p class="success-title">Patient créé</p>
           </div>
         </div>
 
@@ -68,7 +63,6 @@ const emit = defineEmits(['back', 'calendar'])
         </div>
 
         <div class="actions">
-          <span class="muted">Le dossier peut être complété plus tard.</span>
           <div class="buttons">
             <button type="button" class="btn" @click="emit('back')">Retour à la liste</button>
             <button type="button" class="btn btn-primary" @click="emit('calendar')">

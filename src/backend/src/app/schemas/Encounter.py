@@ -1,10 +1,17 @@
 from datetime import datetime
+from typing import Annotated
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import AfterValidator, BaseModel, ConfigDict, Field, StringConstraints
 
 from app.models.encounter import EncounterStatus, EncounterTypeCode
 from app.schemas.Patient import PatientOut
-from app.schemas.Reference import LocationOut
+
+
+# where the patient is, typed freely (e.g. "Chambre 12, lit A"); blank means no location
+LocationText = Annotated[
+  Annotated[str, StringConstraints(strip_whitespace=True, max_length=128)] | None,
+  AfterValidator(lambda value: value or None),
+]
 
 
 class EncounterCreate(BaseModel):
@@ -17,7 +24,7 @@ class EncounterCreate(BaseModel):
   admission_date: datetime
   expected_discharge_date: datetime | None = None
   reason: str | None = Field(default=None, max_length=255)
-  current_location_id: int | None = None  # first location (room and bed)
+  location: LocationText = None
 
 
 class EncounterUpdate(BaseModel):
@@ -31,7 +38,7 @@ class EncounterUpdate(BaseModel):
   expected_discharge_date: datetime | None = None
   actual_discharge_date: datetime | None = None
   reason: str | None = Field(default=None, max_length=255)
-  current_location_id: int | None = None
+  location: LocationText = None
 
 
 class EncounterSummaryOut(BaseModel):
@@ -44,7 +51,7 @@ class EncounterSummaryOut(BaseModel):
   admission_date: datetime
   expected_discharge_date: datetime | None
   actual_discharge_date: datetime | None
-  current_location: LocationOut | None
+  location: str | None
 
 
 class EncounterOut(BaseModel):
@@ -60,6 +67,5 @@ class EncounterOut(BaseModel):
   expected_discharge_date: datetime | None
   actual_discharge_date: datetime | None
   reason: str | None
-  current_location_id: int | None
-  current_location: LocationOut | None
+  location: str | None
   service_provider_id: int | None

@@ -164,27 +164,6 @@ const canSubmit = computed(
   () => patient.value && stayState.value === 'found' && fieldsFilled.value && !submitting.value,
 )
 
-const status = computed(() => {
-  if (stayState.value === 'missing') {
-    const record = patient.value.ipp || patientName(patient.value) || 'sélectionné'
-    return {
-      kind: 'warning',
-      text: `Validation impossible : aucun séjour en cours pour le dossier ${record}.`,
-    }
-  }
-  if (windowInvalid.value)
-    return { kind: 'error', text: 'La fin de la plage doit être après son début.' }
-  if (patient.value && stayState.value === 'found' && fieldsFilled.value)
-    return {
-      kind: 'info',
-      text: 'Toutes les informations obligatoires sont renseignées. Les soignants et la note peuvent rester vides.',
-    }
-  return {
-    kind: 'info',
-    text: 'Sélectionnez un patient et renseignez les informations obligatoires pour activer le bouton Valider.',
-  }
-})
-
 // ---- caregivers in charge: chips + a select to add one ----
 
 const adding = ref('')
@@ -244,12 +223,9 @@ function createStay() {
     <div class="title-row">
       <div>
         <h1 class="page-title">{{ editing ? 'Modifier le soin' : 'Planifier un soin' }}</h1>
-        <p class="page-description">
-          {{
-            editing
-              ? `${appointment.activity_definition.name} · ${patientName(appointment.patient) || 'Patient sous X'}`
-              : 'Sélectionnez un patient, puis renseignez les informations du soin.'
-          }}
+        <p v-if="editing" class="page-description">
+          {{ appointment.activity_definition.name }} ·
+          {{ patientName(appointment.patient) || 'Patient sous X' }}
         </p>
       </div>
       <button type="button" class="btn btn-small" @click="emit('cancel')">
@@ -262,10 +238,6 @@ function createStay() {
     <form class="card" novalidate @submit.prevent="submit">
       <div class="card-header">
         <h2 class="card-title">Informations du soin</h2>
-        <p class="card-description">
-          Les champs marqués d’un astérisque sont obligatoires. Le séjour en cours est associé
-          automatiquement.
-        </p>
       </div>
 
       <div class="card-body">
@@ -290,29 +262,18 @@ function createStay() {
             <div class="row">
               <label class="field">
                 <span class="field-label">Nom</span>
-                <input
-                  v-model="search.nameFamily"
-                  class="input"
-                  placeholder="Nom du patient sélectionné (sinon vide)"
-                />
+                <input v-model="search.nameFamily" class="input" />
               </label>
               <label class="field">
                 <span class="field-label">Prénom</span>
-                <input
-                  v-model="search.nameGiven"
-                  class="input"
-                  placeholder="Prénom du patient sélectionné (sinon vide)"
-                />
+                <input v-model="search.nameGiven" class="input" />
               </label>
             </div>
-            <p v-if="!searching" class="muted hint">
-              Renseignez le nom et le prénom, puis choisissez un dossier parmi les résultats.
-            </p>
-            <template v-else>
+            <template v-if="searching">
               <p class="muted hint">
                 {{
                   results.length
-                    ? `${results.length} dossier${results.length > 1 ? 's correspondent' : ' correspond'}. Choisissez le patient concerné.`
+                    ? `${results.length} dossier${results.length > 1 ? 's correspondent' : ' correspond'}.`
                     : 'Aucun dossier ne correspond.'
                 }}
               </p>
@@ -326,35 +287,27 @@ function createStay() {
                   Choisir ce patient
                 </button>
               </div>
-              <p class="hint not-selected">
-                Aucun patient sélectionné : la saisie du nom et du prénom ne suffit pas.
-              </p>
             </template>
           </template>
         </div>
 
         <!-- current stay -->
-        <div class="stay-box" :class="{ warning: stayState === 'missing' }">
+        <div
+          v-if="stayState !== 'none'"
+          class="stay-box"
+          :class="{ warning: stayState === 'missing' }"
+        >
           <div class="stay-head">
             <strong>Séjour en cours</strong>
-            <span class="muted">Association automatique</span>
           </div>
-          <p v-if="stayState === 'none'">
-            Sélectionnez un patient pour afficher et associer son séjour en cours. Aucune saisie de
-            séjour n’est nécessaire.
-          </p>
-          <p v-else-if="stayState === 'loading'" class="muted">Recherche du séjour en cours…</p>
+          <p v-if="stayState === 'loading'" class="muted">Recherche du séjour en cours…</p>
           <p v-else-if="stayState === 'found'">
             <strong>Débuté le {{ formatDate(stay.admission_date.slice(0, 10)) }}</strong>
-            <template v-if="stay.current_location"> · {{ stay.current_location.name }}</template>
+            <template v-if="stay.location"> · {{ stay.location }}</template>
             <span class="muted"> · Séjour n° {{ stay.stay_number }}</span>
           </p>
           <template v-else>
             <p class="stay-missing">Aucun séjour en cours</p>
-            <p>
-              Ce soin ne peut pas être créé sans séjour. Créez un séjour pour ce patient ou
-              choisissez un autre dossier.
-            </p>
             <div class="buttons">
               <button type="button" class="btn btn-small" @click="createStay">
                 Créer un séjour pour ce patient
@@ -388,9 +341,6 @@ function createStay() {
               {{ c.label }}
             </label>
           </div>
-          <p class="muted hint">
-            Choisissez faible pour une plage horaire ou forte pour une heure précise.
-          </p>
         </fieldset>
 
         <div class="row" :class="form.constraint === 'STRONG' ? 'row-2' : 'row-3'">
@@ -417,13 +367,10 @@ function createStay() {
             </label>
           </template>
         </div>
-        <p v-if="form.constraint !== 'STRONG'" class="muted hint tight">
-          Si la contrainte est forte, une heure précise remplace les champs de début et de fin.
-        </p>
 
         <div class="row">
           <div class="field">
-            <span class="field-label">Soignant(s) en charge · facultatif</span>
+            <span class="field-label">Soignant(s) en charge</span>
             <div class="chips">
               <span v-for="id in form.performerIds" :key="id" class="chip">
                 {{ practitionerName(practitionerById(id)) || 'Soignant' }}
@@ -452,7 +399,7 @@ function createStay() {
             </div>
           </div>
           <label class="field">
-            <span class="field-label">Soignant ayant validé la prescription · facultatif</span>
+            <span class="field-label">Soignant ayant validé la prescription</span>
             <select v-model="form.validatorId" class="input">
               <option value="">Sélectionner un soignant</option>
               <option v-for="p in practitioners" :key="p.id" :value="p.id">
@@ -463,23 +410,13 @@ function createStay() {
         </div>
 
         <label class="field">
-          <span class="field-label">Note sur les conditions de réalisation · facultatif</span>
-          <textarea
-            v-model="form.note"
-            class="input"
-            placeholder="Ajouter une note sur les conditions de réalisation…"
-          ></textarea>
+          <span class="field-label">Note sur les conditions de réalisation</span>
+          <textarea v-model="form.note" class="input"></textarea>
         </label>
 
-        <div
-          class="notice"
-          :class="{
-            'notice-warning': status.kind === 'warning',
-            'notice-error': status.kind === 'error',
-          }"
-        >
-          <AppIcon :name="status.kind === 'warning' ? 'alert-triangle' : 'info'" :size="16" />
-          {{ status.text }}
+        <div v-if="windowInvalid" class="notice notice-error">
+          <AppIcon name="alert-circle" :size="16" />
+          La fin de la plage doit être après son début.
         </div>
         <div v-if="error" class="notice notice-error" role="alert">
           <AppIcon name="alert-circle" :size="16" />
@@ -497,7 +434,6 @@ function createStay() {
         </div>
       </div>
     </form>
-    <p class="muted footnote">Données de démonstration · Aucun dossier médical réel</p>
   </div>
 </template>
 
@@ -521,14 +457,6 @@ function createStay() {
 
 .hint {
   margin: 4px 0 0;
-}
-
-.hint.tight {
-  margin-top: -8px;
-}
-
-.not-selected {
-  color: var(--color-primary);
 }
 
 .patient-box {
@@ -652,9 +580,5 @@ function createStay() {
   color: var(--color-text-muted);
   font-size: 14px;
   cursor: pointer;
-}
-
-.footnote {
-  margin: 0;
 }
 </style>

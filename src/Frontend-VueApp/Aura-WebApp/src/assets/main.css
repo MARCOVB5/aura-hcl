@@ -195,6 +195,11 @@ textarea {
   gap: 16px;
 }
 
+/* the buttons stay on the right when there is no text next to them */
+.actions > :only-child {
+  margin-left: auto;
+}
+
 .buttons {
   display: flex;
   gap: 12px;
