@@ -6,7 +6,7 @@ import { STAY_STATUSES, STAY_TYPES, formatDateTime, labelOf, patientName } from 
 const props = defineProps({
   hospitalization: { type: Object, required: true },
 })
-const emit = defineEmits(['new-admission', 'patients'])
+const emit = defineEmits(['new-admission', 'record'])
 
 const encounter = computed(() => props.hospitalization.encounter)
 const patient = computed(() => encounter.value.patient)
@@ -37,6 +37,9 @@ const name = computed(() => patientName(patient.value) || 'Patient sous X')
           <div>
             <p class="success-title">Le séjour de {{ name }} a bien été créé.</p>
             <p>
+              <template v-if="encounter.current_location">
+                Le patient est admis en {{ encounter.current_location.name }}.
+              </template>
               Séjour n° {{ encounter.stay_number }} ·
               {{ labelOf(STAY_TYPES, encounter.encounter_type_code) }} ·
               {{ labelOf(STAY_STATUSES, encounter.status) }}
@@ -58,6 +61,10 @@ const name = computed(() => patientName(patient.value) || 'Patient sous X')
             </dd>
           </div>
           <div>
+            <dt>Première localisation</dt>
+            <dd>{{ encounter.current_location?.name || '—' }}</dd>
+          </div>
+          <div>
             <dt>Motif</dt>
             <dd>{{ encounter.reason || '—' }}</dd>
           </div>
@@ -73,8 +80,8 @@ const name = computed(() => patientName(patient.value) || 'Patient sous X')
             <button type="button" class="btn" @click="emit('new-admission')">
               Nouvelle admission
             </button>
-            <button type="button" class="btn btn-primary" @click="emit('patients')">
-              Voir la liste des patients
+            <button type="button" class="btn btn-primary" @click="emit('record', patient)">
+              Voir le dossier patient
             </button>
           </div>
         </div>

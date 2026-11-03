@@ -1,6 +1,7 @@
-from fastapi import APIRouter, Query, status
+from fastapi import APIRouter, Query, Response, status
 
 from app.deps import HospitalizationManagementServiceDep
+from app.schemas.Encounter import EncounterUpdate
 from app.schemas.Hospitalization import HospitalizationCreate, HospitalizationOut
 
 
@@ -29,3 +30,23 @@ def create_hospitalization(
     service: HospitalizationManagementServiceDep,
 ):
     return service.create_hospitalization(data)
+
+
+# only the fields that are sent are changed
+@router.patch("/{encounter_id}", response_model=HospitalizationOut)
+def update_hospitalization(
+    encounter_id: int,
+    data: EncounterUpdate,
+    service: HospitalizationManagementServiceDep,
+):
+    return service.update_hospitalization(encounter_id, data)
+
+
+# 409 "Stay has care appointments" if care is attached to the stay
+@router.delete("/{encounter_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_hospitalization(
+    encounter_id: int,
+    service: HospitalizationManagementServiceDep,
+):
+    service.delete_hospitalization(encounter_id)
+    return Response(status_code=status.HTTP_204_NO_CONTENT)

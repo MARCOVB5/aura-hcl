@@ -1,4 +1,4 @@
-from app.api.routes import hospitalizations, patients
+from app.api.routes import care, hospitalizations, patients
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
@@ -18,6 +18,7 @@ app.add_middleware(
 
 app.include_router(patients.router)
 app.include_router(hospitalizations.router)
+app.include_router(care.router)
 
 @app.exception_handler(AppError)
 async def handle_app_error(request : Request, exc : AppError):

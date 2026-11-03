@@ -1,0 +1,82 @@
+from __future__ import annotations
+
+import datetime
+import enum
+from typing import TYPE_CHECKING
+
+from app.models import Base
+from app.models.common import ID, enum_values
+
+from sqlalchemy import Column, Date, DateTime, Enum, ForeignKey, String, Table, Text
+from sqlalchemy.orm import Mapped, mapped_column, relationship
+
+if TYPE_CHECKING:
+  from app.models.encounter import Encounter
+  from app.models.patient import Patient
+  from app.models.practitioner import Practitioner
+
+'''
+Care planning: the kinds of care the department provides, and the care
+appointments scheduled for a patient during a stay
+'''
+
+class ActivityDefinition(Base):
+  """A type of care (e.g. "Prise de sang"), the list is seeded by a migration"""
+  __tablename__ = "activity_definition"
+
+  id : Mapped[int] = mapped_column(ID, primary_key=True, autoincrement=True)
+  code : Mapped[str] = mapped_column(String(32), unique=True)
+  name : Mapped[str] = mapped_column(String(255))
+  description : Mapped[str | None] = mapped_column(Text)
+
+
+class TimeConstraint(enum.Enum):
+  WEAK = "WEAK"     # to do within a time window: scheduled_start -> scheduled_end
+  STRONG = "STRONG" # to do at a precise time: scheduled_start
+
+
+class AppointmentStatus(enum.Enum):
+  PLANNED = "PLANNED"
+  DONE = "DONE"
+  CANCELLED = "CANCELLED"
+
+
+# the caregivers in charge of a care appointment (0..*)
+appointment_performer = Table(
+  "appointment_performer",
+  Base.metadata,
+  Column("appointment_id", ID, ForeignKey("appointment.id", ondelete="CASCADE"), primary_key=True),
+  Column("practitioner_id", ID, ForeignKey("practitioner.id"), primary_key=True),
+)
+
+
+class Appointment(Base):
+  """A care appointment: one care to do for a patient, during one of their stays"""
+  __tablename__ = "appointment"
+
+  id : Mapped[int] = mapped_column(ID, primary_key=True, autoincrement=True)
+  patient_id : Mapped[int] = mapped_column(ID, ForeignKey("patient.id"))
+  # a care is always attached to the stay that was in progress when it was planned
+  encounter_id : Mapped[int] = mapped_column(ID, ForeignKey("encounter.id"))
+  activity_definition_id : Mapped[int] = mapped_column(ID, ForeignKey("activity_definition.id"))
+  prescribed_on : Mapped[datetime.date] = mapped_column(Date)
+  time_constraint : Mapped[TimeConstraint] = mapped_column(Enum(TimeConstraint, values_callable=enum_values))
+  scheduled_start : Mapped[datetime.datetime] = mapped_column(DateTime)
+  scheduled_end : Mapped[datetime.datetime | None] = mapped_column(DateTime) # only for a WEAK constraint
+  # the caregiver who validated the prescription (Prescrit par)
+  validated_by_id : Mapped[int | None] = mapped_column(ID, ForeignKey("practitioner.id"))
+  note : Mapped[str | None] = mapped_column(Text)
+  status : Mapped[AppointmentStatus] = mapped_column(
+    Enum(AppointmentStatus, values_callable=enum_values),
+    default=AppointmentStatus.PLANNED,
+    server_default="PLANNED",
+  )
+
+  patient : Mapped[Patient] = relationship()
+  encounter : Mapped[Encounter] = relationship()
+  activity_definition : Mapped[ActivityDefinition] = relationship()
+  validated_by : Mapped[Practitioner | None] = relationship()
+  performers : Mapped[list[Practitioner]] = relationship(
+    secondary=appointment_performer,
+    order_by="Practitioner.id",
+  )
