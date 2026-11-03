@@ -49,35 +49,11 @@ const error = ref('')
 const namesFilled = computed(() => form.nameFamily.trim() !== '' && form.nameGiven.trim() !== '')
 const canSubmit = computed(() => (form.anonymous || namesFilled.value) && !submitting.value)
 
-const fullName = computed(() => [form.nameGiven.trim(), form.nameFamily.trim()].join(' ').trim())
-
-// texts of the three states of the Figma frame "Formulaire créer patient"
+// edit mode: whose record this is
 const pageDescription = computed(() => {
-  if (editing.value) {
-    const name = patientName(props.patient) || 'Patient sous X'
-    return `${name} · Identifiant : ${props.patient.ipp || 'non renseigné'}`
-  }
-  if (props.forAdmission) {
-    const who = fullName.value ? `de ${fullName.value}` : 'du patient'
-    return `Informations reprises de la recherche. Après validation, vous créerez le séjour ${who}.`
-  }
-  if (form.anonymous) return 'Option Patient sous X cochée : nom et prénom deviennent facultatifs.'
-  if (namesFilled.value)
-    return 'Nom et prénom sont renseignés : le bouton Valider est désormais actif.'
-  return 'Saisissez les informations obligatoires pour créer un dossier patient.'
-})
-const cardDescription = computed(() =>
-  form.anonymous
-    ? 'Nom et prénom sont facultatifs car l’option Patient sous X est cochée.'
-    : 'Nom et prénom sont obligatoires, sauf si le patient est sous X.',
-)
-const statusText = computed(() => {
-  if (editing.value) return '* Champs obligatoires · Le séjour se modifie séparément.'
-  if (props.forAdmission && canSubmit.value)
-    return 'Valider crée le patient, puis ouvre la création de son séjour.'
-  if (form.anonymous) return 'Patient sous X : aucun champ obligatoire.'
-  if (namesFilled.value) return 'Tous les champs obligatoires sont renseignés.'
-  return 'Renseignez le nom et le prénom pour continuer.'
+  if (!editing.value) return ''
+  const name = patientName(props.patient) || 'Patient sous X'
+  return `${name} · Identifiant : ${props.patient.ipp || 'non renseigné'}`
 })
 
 // one allergy per line, or separated by commas / semicolons
@@ -126,7 +102,7 @@ async function submit() {
         <h1 class="page-title">
           {{ editing ? 'Modifier les informations du patient' : 'Créer un patient' }}
         </h1>
-        <p class="page-description">{{ pageDescription }}</p>
+        <p v-if="pageDescription" class="page-description">{{ pageDescription }}</p>
       </div>
       <button v-if="forAdmission" type="button" class="btn btn-small" @click="emit('cancel')">
         Retour à la recherche
@@ -141,7 +117,6 @@ async function submit() {
     <form class="card" novalidate @submit.prevent="submit">
       <div class="card-header">
         <h2 class="card-title">Informations du patient</h2>
-        <p class="card-description">{{ cardDescription }}</p>
       </div>
 
       <div class="card-body">
@@ -152,7 +127,6 @@ async function submit() {
               <input
                 v-model="form.nameFamily"
                 class="input"
-                placeholder="Ex. : Doe"
                 maxlength="128"
                 :required="!form.anonymous"
               />
@@ -162,7 +136,6 @@ async function submit() {
               <input
                 v-model="form.nameGiven"
                 class="input"
-                placeholder="Ex. : John"
                 maxlength="128"
                 :required="!form.anonymous"
               />
@@ -170,7 +143,7 @@ async function submit() {
           </div>
           <label class="inline-option">
             <input v-model="form.anonymous" type="checkbox" class="checkbox" />
-            Patient sous X (nom et prénom facultatifs)
+            Patient sous X
           </label>
         </div>
 
@@ -194,49 +167,32 @@ async function submit() {
           </label>
           <label class="field">
             <span class="field-label">Contact</span>
-            <input
-              v-model="form.contact"
-              type="tel"
-              class="input"
-              placeholder="Ex. : 06 12 34 56 78"
-            />
+            <input v-model="form.contact" type="tel" class="input" />
           </label>
           <label class="field">
             <span class="field-label">IPP</span>
-            <input v-model="form.ipp" class="input" placeholder="Ex. : 123456789" maxlength="32" />
+            <input v-model="form.ipp" class="input" maxlength="32" />
           </label>
         </div>
 
         <div class="row row-2">
           <label class="field">
             <span class="field-label">Informations personnelles</span>
-            <textarea
-              v-model="form.personalInfo"
-              class="input"
-              placeholder="Ex. : antécédents, contexte, particularités…"
-            ></textarea>
+            <textarea v-model="form.personalInfo" class="input"></textarea>
           </label>
           <label class="field">
             <span class="field-label">Allergies</span>
-            <textarea
-              v-model="form.allergies"
-              class="input"
-              placeholder="Ex. : médicaments, produits, précautions… (une par ligne)"
-            ></textarea>
+            <textarea v-model="form.allergies" class="input"></textarea>
           </label>
         </div>
 
         <div class="block block-validation">
-          <div v-if="!editing" class="notice">
-            <AppIcon name="info" :size="16" />
-            IPP, contact, informations personnelles et allergies peuvent être ajoutés plus tard.
-          </div>
           <div v-if="error" class="notice notice-error" role="alert">
             <AppIcon name="alert-circle" :size="16" />
             {{ error }}
           </div>
           <div class="actions">
-            <span class="muted">{{ statusText }}</span>
+            <span class="muted">* Champs obligatoires</span>
             <div class="buttons">
               <button v-if="!forAdmission" type="button" class="btn" @click="emit('cancel')">
                 Annuler

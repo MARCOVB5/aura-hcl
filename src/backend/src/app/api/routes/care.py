@@ -4,14 +4,9 @@ from fastapi import APIRouter, Query, status
 
 from app.deps import CareManagementServiceDep
 from app.schemas.Care import AppointmentCreate, AppointmentOut, AppointmentUpdate
-from app.schemas.Reference import CareTypeOut, LocationOut, PractitionerOut
+from app.schemas.Reference import CareTypeOut, PractitionerOut
 
 router = APIRouter(prefix="/api", tags=["care"])
-
-
-@router.get("/locations", response_model=list[LocationOut])
-def list_locations(service: CareManagementServiceDep):
-  return service.list_locations()
 
 
 @router.get("/care-types", response_model=list[CareTypeOut])

@@ -4,6 +4,13 @@ import PatientFormView from '../../views/PatientFormView.vue'
 
 const submitButton = (wrapper) => wrapper.get('button[type="submit"]')
 
+// the input of the field whose label starts with this text
+const input = (wrapper, label) =>
+  wrapper
+    .findAll('.field')
+    .find((f) => f.find('.field-label').exists() && f.get('.field-label').text().startsWith(label))
+    .get('input')
+
 function mockFetch(status, body) {
   globalThis.fetch = vi.fn().mockResolvedValue({
     ok: status < 400,
@@ -20,12 +27,11 @@ it('requires last and first name before Valider is enabled', async () => {
   const wrapper = mount(PatientFormView)
   expect(submitButton(wrapper).attributes('disabled')).toBeDefined()
 
-  await wrapper.get('input[placeholder="Ex. : Doe"]').setValue('Doxa')
+  await input(wrapper, 'Nom').setValue('Doxa')
   expect(submitButton(wrapper).attributes('disabled')).toBeDefined()
 
-  await wrapper.get('input[placeholder="Ex. : John"]').setValue('Loui')
+  await input(wrapper, 'Prénom').setValue('Loui')
   expect(submitButton(wrapper).attributes('disabled')).toBeUndefined()
-  expect(wrapper.text()).toContain('Tous les champs obligatoires sont renseignés.')
 })
 
 it('makes names optional for a "Patient sous X"', async () => {
@@ -33,7 +39,6 @@ it('makes names optional for a "Patient sous X"', async () => {
   await wrapper.get('input[type="checkbox"]').setValue(true)
 
   expect(submitButton(wrapper).attributes('disabled')).toBeUndefined()
-  expect(wrapper.text()).toContain('Patient sous X : aucun champ obligatoire.')
 })
 
 it('sends the patient to the API and emits the created patient', async () => {
@@ -41,11 +46,11 @@ it('sends the patient to the API and emits the created patient', async () => {
   mockFetch(201, created)
   const wrapper = mount(PatientFormView)
 
-  await wrapper.get('input[placeholder="Ex. : Doe"]').setValue('  Doxa ')
-  await wrapper.get('input[placeholder="Ex. : John"]').setValue('Loui')
+  await input(wrapper, 'Nom').setValue('  Doxa ')
+  await input(wrapper, 'Prénom').setValue('Loui')
   await wrapper.get('input[value="female"]').setValue(true)
   await wrapper.get('input[placeholder="JJ/MM/AAAA"]').setValue('06/11/1990')
-  await wrapper.get('input[placeholder="Ex. : 123456789"]').setValue('123')
+  await input(wrapper, 'IPP').setValue('123')
   await wrapper.get('input[type="tel"]').setValue(' 06 12 34 56 78 ')
   await wrapper.findAll('textarea')[0].setValue('Antécédents cardiaques')
   await wrapper.findAll('textarea')[1].setValue('Pénicilline\nLatex, Iode')
@@ -86,11 +91,11 @@ it('edits an existing patient: prefilled, then saved with PUT', async () => {
 
   expect(wrapper.get('h1').text()).toBe('Modifier les informations du patient')
   expect(wrapper.text()).toContain('Thomas Larmou · Identifiant : DEMO-002')
-  expect(wrapper.get('input[placeholder="Ex. : Doe"]').element.value).toBe('Larmou')
+  expect(input(wrapper, 'Nom').element.value).toBe('Larmou')
   expect(wrapper.get('input[placeholder="JJ/MM/AAAA"]').element.value).toBe('27/08/1975')
   expect(wrapper.findAll('textarea')[1].element.value).toBe('Latex')
 
-  await wrapper.get('input[placeholder="Ex. : 123456789"]').setValue('DEMO-002-B')
+  await input(wrapper, 'IPP').setValue('DEMO-002-B')
   await wrapper.get('form').trigger('submit')
   await flushPromises()
 
@@ -120,10 +125,8 @@ it('is prefilled from the admission search', async () => {
     },
   })
 
-  expect(wrapper.get('input[placeholder="Ex. : Doe"]').element.value).toBe('Delmas')
-  expect(wrapper.get('input[placeholder="Ex. : 123456789"]').element.value).toBe('IPP-1')
-  expect(wrapper.text()).toContain('vous créerez le séjour de Nora Delmas')
-  expect(wrapper.text()).toContain('Valider crée le patient, puis ouvre la création de son séjour.')
+  expect(input(wrapper, 'Nom').element.value).toBe('Delmas')
+  expect(input(wrapper, 'IPP').element.value).toBe('IPP-1')
 })
 
 it('shows the backend message when the IPP is already registered', async () => {

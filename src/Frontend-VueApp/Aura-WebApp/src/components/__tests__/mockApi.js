@@ -26,10 +26,7 @@ export function sentTo(method, path) {
 }
 
 // sample data in the backend's format
-export const LOCATIONS = [
-  { id: 1, code: 'REA-10-A', name: 'Réanimation · Chambre 10 · Lit A' },
-  { id: 2, code: 'REA-12-A', name: 'Réanimation · Chambre 12 · Lit A' },
-]
+export const LOCATION = 'Réanimation · Chambre 12 · Lit A'
 
 export const CARE_TYPES = [
   { id: 1, code: 'PRISE_SANG', name: 'Prise de sang' },
@@ -79,7 +76,7 @@ export function stay(
   id,
   patient,
   admission,
-  { expected = null, actual = null, location = LOCATIONS[1] } = {},
+  { expected = null, actual = null, location = LOCATION } = {},
 ) {
   return {
     id,
@@ -92,8 +89,7 @@ export function stay(
     expected_discharge_date: expected,
     actual_discharge_date: actual,
     reason: null,
-    current_location_id: location?.id ?? null,
-    current_location: location,
+    location,
   }
 }
 

@@ -1,7 +1,7 @@
 import { afterEach, expect, it, vi } from 'vitest'
 import { flushPromises, mount } from '@vue/test-utils'
 import PatientRecordView from '../../views/PatientRecordView.vue'
-import { LOCATIONS, hospitalizationOf, mockApi, sentTo, stay } from './mockApi.js'
+import { hospitalizationOf, mockApi, sentTo, stay } from './mockApi.js'
 
 const THOMAS = {
   id: 2,
@@ -26,7 +26,6 @@ function mountRecord(extra = []) {
   mockApi([
     ['GET', /\/api\/patients\/2$/, 200, THOMAS],
     ['GET', /\/api\/patients\/2\/hospitalizations$/, 200, STAYS],
-    ['GET', /\/api\/locations$/, 200, LOCATIONS],
     ...extra,
   ])
   return mount(PatientRecordView, { props: { patientId: 2 } })
@@ -71,7 +70,7 @@ it('edits the stays: changed fields are patched, removed stays deleted', async (
   expect(rows).toHaveLength(2)
 
   await rows[0].findAll('input[placeholder="JJ/MM/AAAA"]')[1].setValue('25/10/2026') // new end date
-  await rows[0].get('select').setValue(LOCATIONS[0].id)
+  await rows[0].get('input[maxlength="128"]').setValue(' Box 3 ')
   await rows[1].get('.delete').trigger('click')
   await wrapper
     .findAll('button')
@@ -81,7 +80,7 @@ it('edits the stays: changed fields are patched, removed stays deleted', async (
 
   expect(sentTo('PATCH', /\/api\/hospitalizations\/40$/)).toEqual([
     // the time of the original value is kept
-    { actual_discharge_date: '2026-10-25T11:00:00', current_location_id: LOCATIONS[0].id },
+    { actual_discharge_date: '2026-10-25T11:00:00', location: 'Box 3' },
   ])
   const deletes = fetch.mock.calls.filter(([, o = {}]) => o.method === 'DELETE')
   expect(deletes.map(([url]) => url)).toEqual([
@@ -108,4 +107,16 @@ it('keeps edit mode and shows why a stay could not be deleted', async () => {
 
   expect(wrapper.get('[role="alert"]').text()).toContain('Ce séjour a des soins planifiés')
   expect(wrapper.findAll('.stay-row')).toHaveLength(2)
+})
+
+it('opens with the stays in edit mode from "Modifier le séjour" of the patient list', async () => {
+  mockApi([
+    ['GET', /\/api\/patients\/2$/, 200, THOMAS],
+    ['GET', /\/api\/patients\/2\/hospitalizations$/, 200, STAYS],
+  ])
+  const wrapper = mount(PatientRecordView, { props: { patientId: 2, editStays: true } })
+  await flushPromises()
+
+  expect(wrapper.findAll('.stay-row')).toHaveLength(2)
+  expect(wrapper.findAll('button').some((b) => b.text() === 'Enregistrer')).toBe(true)
 })

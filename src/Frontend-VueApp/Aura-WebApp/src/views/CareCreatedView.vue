@@ -41,12 +41,7 @@ const details = computed(() => [
   <header class="page-header">
     <h2 class="service-name">Service de réanimation</h2>
     <div class="title-row">
-      <div>
-        <h1 class="page-title">{{ created ? 'Création du soin' : 'Modification du soin' }}</h1>
-        <p class="page-description">
-          Le soin est enregistré dans le calendrier du service et rattaché au séjour du patient.
-        </p>
-      </div>
+      <h1 class="page-title">{{ created ? 'Création du soin' : 'Modification du soin' }}</h1>
     </div>
   </header>
 
@@ -56,7 +51,7 @@ const details = computed(() => [
         <span class="success-icon"><AppIcon name="check" :size="18" /></span>
         <div>
           <h2 class="card-title">
-            {{ created ? 'Le soin a bien été créé' : 'Le soin a bien été modifié' }}
+            {{ created ? 'Soin créé' : 'Soin modifié' }}
           </h2>
           <p class="card-description">{{ a.activity_definition.name }} · Le {{ careWhen(a) }}</p>
         </div>
@@ -77,13 +72,12 @@ const details = computed(() => [
         <div class="stay-box">
           <div class="stay-head">
             <strong>Séjour en cours</strong>
-            <span class="muted">Associé automatiquement</span>
           </div>
           <p class="stay-start">
             Débuté le {{ formatDate(a.encounter.admission_date.slice(0, 10)) }}
           </p>
           <p>
-            {{ a.encounter.current_location?.name || 'Localisation non renseignée' }} · Séjour n°
+            {{ a.encounter.location || 'Localisation non renseignée' }} · Séjour n°
             {{ a.encounter.stay_number }}
           </p>
         </div>
@@ -98,14 +92,7 @@ const details = computed(() => [
           </div>
         </dl>
 
-        <div class="notice">
-          <AppIcon name="info" :size="16" />
-          Le soin est désormais visible dans le calendrier. Le patient et son séjour restent
-          associés au soin.
-        </div>
-
         <div class="actions">
-          <span></span>
           <div class="buttons">
             <button type="button" class="btn" @click="emit('plan-another', a.patient)">
               Planifier un autre soin
@@ -117,7 +104,6 @@ const details = computed(() => [
         </div>
       </div>
     </section>
-    <p class="muted footnote">Données de démonstration · Aucun dossier médical réel</p>
   </div>
 </template>
 
@@ -215,9 +201,5 @@ dd {
   font-size: 14px;
   font-weight: 500;
   white-space: pre-line;
-}
-
-.footnote {
-  margin: 0;
 }
 </style>

@@ -1,6 +1,7 @@
 import { afterEach, expect, it, vi } from 'vitest'
 import { flushPromises, mount } from '@vue/test-utils'
 import App from '../../App.vue'
+import { hospitalizationOf, mockApi, stay } from './mockApi.js'
 
 const PATIENTS = [
   {
@@ -79,4 +80,30 @@ it('opens the create form from the list', async () => {
 
   await wrapper.get('.btn-create').trigger('click')
   expect(wrapper.get('h1').text()).toBe('Créer un patient')
+})
+
+it('opens the patient record with the stays in edit mode from Modifier le séjour', async () => {
+  const camille = { ...PATIENTS[0], identification_status: 'PROVISIONAL', contact: null }
+  mockApi([
+    ['GET', /\/api\/patients\?/, 200, PATIENTS],
+    ['GET', /\/api\/patients\/1$/, 200, camille],
+    [
+      'GET',
+      /\/api\/patients\/1\/hospitalizations$/,
+      200,
+      [hospitalizationOf(stay(9, camille, '2026-10-20T08:00:00'))],
+    ],
+  ])
+  const wrapper = mount(App)
+  await flushPromises()
+
+  const button = wrapper
+    .findAll('tbody tr')[0]
+    .findAll('button')
+    .find((b) => b.text() === 'Modifier le séjour')
+  await button.trigger('click')
+  await flushPromises()
+
+  expect(wrapper.get('h1').text()).toBe('Camille Benoit')
+  expect(wrapper.findAll('.stay-row')).toHaveLength(1)
 })

@@ -5,13 +5,12 @@ from sqlalchemy.orm import Session, selectinload
 
 from app.dao.patient_dao import PATIENT_OPTIONS
 from app.models.care import Appointment
-from app.models.encounter import Encounter
 from app.models.practitioner import Practitioner
 
 # everything an appointment shows: patient, stay and room, care type, caregivers
 _DETAIL_OPTIONS = (
   selectinload(Appointment.patient).options(*PATIENT_OPTIONS),
-  selectinload(Appointment.encounter).selectinload(Encounter.current_location),
+  selectinload(Appointment.encounter),
   selectinload(Appointment.activity_definition),
   selectinload(Appointment.performers).selectinload(Practitioner.person),
   selectinload(Appointment.validated_by).selectinload(Practitioner.person),
