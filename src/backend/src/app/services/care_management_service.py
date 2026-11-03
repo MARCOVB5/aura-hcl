@@ -8,7 +8,6 @@ from app.dao.patient_dao import PatientDAO
 from app.dao.reference_dao import ReferenceDAO
 from app.errors import Conflict, NotFound
 from app.models.care import ActivityDefinition, Appointment
-from app.models.location import Location
 from app.models.practitioner import Practitioner
 from app.schemas.Care import AppointmentCreate, AppointmentUpdate
 
@@ -31,9 +30,6 @@ class CareManagementService:
     self.references = references
 
   # reference lists
-
-  def list_locations(self) -> list[Location]:
-    return self.references.list_locations()
 
   def list_care_types(self) -> list[ActivityDefinition]:
     return self.references.list_care_types()

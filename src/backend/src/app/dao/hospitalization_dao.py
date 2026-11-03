@@ -8,7 +8,7 @@ from app.models.hospitalization import Hospitalization
 
 _DETAIL_OPTIONS = (
   selectinload(Hospitalization.encounter).selectinload(Encounter.patient).options(*PATIENT_OPTIONS),
-  selectinload(Hospitalization.encounter).selectinload(Encounter.current_location),
+  selectinload(Hospitalization.encounter),
 )
 
 

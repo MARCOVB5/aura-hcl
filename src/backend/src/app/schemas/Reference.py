@@ -2,15 +2,7 @@ from pydantic import BaseModel, ConfigDict
 
 from app.schemas.Person import PersonOut
 
-# reference lists shown in the forms: rooms, care types, caregivers
-
-
-class LocationOut(BaseModel):
-  model_config = ConfigDict(from_attributes=True)
-
-  id: int
-  code: str
-  name: str
+# reference lists shown in the forms: care types, caregivers
 
 
 class CareTypeOut(BaseModel):

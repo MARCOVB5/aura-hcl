@@ -17,29 +17,22 @@ const name = computed(() => patientName(patient.value) || 'Patient sous X')
   <header class="page-header">
     <h2 class="service-name">Service de réanimation</h2>
     <div class="title-row">
-      <div>
-        <h1 class="page-title">Séjour créé</h1>
-        <p class="page-description">L’admission de {{ name }} a été enregistrée.</p>
-      </div>
+      <h1 class="page-title">Séjour créé</h1>
     </div>
   </header>
 
   <div class="page-content">
     <section class="card">
       <div class="card-header">
-        <h2 class="card-title">Confirmation de création</h2>
-        <p class="card-description">Le séjour est désormais associé au dossier du patient.</p>
+        <h2 class="card-title">Confirmation</h2>
       </div>
 
       <div class="card-body">
         <div class="success" role="status">
           <AppIcon name="check" :size="18" />
           <div>
-            <p class="success-title">Le séjour de {{ name }} a bien été créé.</p>
+            <p class="success-title">Séjour de {{ name }} créé</p>
             <p>
-              <template v-if="encounter.current_location">
-                Le patient est admis en {{ encounter.current_location.name }}.
-              </template>
               Séjour n° {{ encounter.stay_number }} ·
               {{ labelOf(STAY_TYPES, encounter.encounter_type_code) }} ·
               {{ labelOf(STAY_STATUSES, encounter.status) }}
@@ -62,7 +55,7 @@ const name = computed(() => patientName(patient.value) || 'Patient sous X')
           </div>
           <div>
             <dt>Première localisation</dt>
-            <dd>{{ encounter.current_location?.name || '—' }}</dd>
+            <dd>{{ encounter.location || '—' }}</dd>
           </div>
           <div>
             <dt>Motif</dt>
@@ -75,7 +68,6 @@ const name = computed(() => patientName(patient.value) || 'Patient sous X')
         </dl>
 
         <div class="actions">
-          <span></span>
           <div class="buttons">
             <button type="button" class="btn" @click="emit('new-admission')">
               Nouvelle admission

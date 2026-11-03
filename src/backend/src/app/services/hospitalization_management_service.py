@@ -7,11 +7,9 @@ from app.dao.appointment_dao import AppointmentDAO
 from app.dao.encounter_dao import EncounterDAO
 from app.dao.hospitalization_dao import HospitalizationDAO
 from app.dao.patient_dao import PatientDAO
-from app.dao.reference_dao import ReferenceDAO
 from app.errors import AppError, Conflict, NotFound
 from app.models.encounter import Encounter
 from app.models.hospitalization import Hospitalization
-from app.models.location import Location
 from app.schemas.Encounter import EncounterUpdate
 from app.schemas.Hospitalization import HospitalizationCreate
 
@@ -24,29 +22,18 @@ class HospitalizationManagementService:
     patients: PatientDAO,
     encounters: EncounterDAO,
     hospitalizations: HospitalizationDAO,
-    references: ReferenceDAO,
     appointments: AppointmentDAO,
   ):
     self.session = session
     self.patients = patients
     self.encounters = encounters
     self.hospitalizations = hospitalizations
-    self.references = references
     self.appointments = appointments
-
-  def _get_location(self, location_id: int | None) -> Location | None:
-    if location_id is None:
-      return None
-    location = self.references.get_location(location_id)
-    if location is None:
-      raise NotFound("Location not found")
-    return location
 
   def create_hospitalization(self, data: HospitalizationCreate) -> Hospitalization:
     patient = self.patients.get(data.encounter.patient_id)
     if patient is None:
       raise NotFound("Patient not found")
-    self._get_location(data.encounter.current_location_id)
 
     try:
       encounter = self.encounters.create(Encounter(
@@ -100,10 +87,6 @@ class HospitalizationManagementService:
     for required in ("stay_number", "status", "encounter_type_code", "admission_date"):
       if required in changes and changes[required] is None:
         raise AppError(f"{required} cannot be empty")
-    # assign the location object, not only its id: the loaded `current_location` would stay stale
-    if "current_location_id" in changes:
-      encounter.current_location = self._get_location(changes.pop("current_location_id"))
-
     for field, value in changes.items():
       setattr(encounter, field, value)
     for end in (encounter.expected_discharge_date, encounter.actual_discharge_date):

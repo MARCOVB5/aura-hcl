@@ -12,7 +12,6 @@ from app.models.common import ID, enum_values
 
 if TYPE_CHECKING:
   from app.models.hospitalization import Hospitalization
-  from app.models.location import Location
   from app.models.patient import Patient
 
 
@@ -53,11 +52,11 @@ class Encounter(Base):
   expected_discharge_date: Mapped[datetime | None] = mapped_column(DateTime)
   actual_discharge_date: Mapped[datetime | None] = mapped_column(DateTime)
   reason: Mapped[str | None] = mapped_column(String(255))
-  current_location_id: Mapped[int | None] = mapped_column(ID, ForeignKey("location.id"))
+  # where the patient is, typed freely (service, room, bed...)
+  location: Mapped[str | None] = mapped_column(String(128))
   service_provider_id: Mapped[int | None] = mapped_column(ID)
 
   patient: Mapped[Patient] = relationship()
-  current_location: Mapped[Location | None] = relationship()
   hospitalization: Mapped[Hospitalization | None] = relationship(
     back_populates="encounter",
     cascade="all, delete-orphan",

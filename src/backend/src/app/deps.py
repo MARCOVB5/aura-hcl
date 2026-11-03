@@ -31,7 +31,6 @@ def get_hospitalization_service(db: DBSession) -> HospitalizationManagementServi
         PatientDAO(db),
         EncounterDAO(db),
         HospitalizationDAO(db),
-        ReferenceDAO(db),
         AppointmentDAO(db),
     )
 

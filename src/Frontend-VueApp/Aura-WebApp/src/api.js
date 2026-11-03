@@ -15,7 +15,6 @@ const BACKEND_MESSAGES = {
   'Stay number already registered': 'Ce numéro de séjour existe déjà.',
   'Patient not found': 'Patient introuvable.',
   'Hospitalization not found': 'Séjour introuvable.',
-  'Location not found': 'Localisation introuvable.',
   'No current stay': 'Ce patient n’a aucun séjour en cours.',
   'Stay has care appointments': 'Ce séjour a des soins planifiés : il ne peut pas être supprimé.',
   'Discharge date before admission date': 'La date de fin doit être après la date de début.',
@@ -109,7 +108,6 @@ export function deleteHospitalization(encounterId) {
 
 // reference lists
 
-export const listLocations = () => request('/api/locations')
 export const listCareTypes = () => request('/api/care-types')
 export const listPractitioners = () => request('/api/practitioners')
 

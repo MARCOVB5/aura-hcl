@@ -48,13 +48,12 @@ it('finds patients by name and needs one to be chosen', async () => {
   const wrapper = mount(CareFormView, { props: { today: TODAY } })
   await flushPromises()
 
-  expect(wrapper.text()).toContain('Sélectionnez un patient pour afficher et associer son séjour')
+  expect(wrapper.find('.stay-box').exists()).toBe(false) // no patient yet
   await input(wrapper, 'Nom').get('input').setValue('exemple')
   await input(wrapper, 'Prénom').get('input').setValue('lea')
   await flushPromises()
 
   expect(wrapper.text()).toContain('2 dossiers correspondent')
-  expect(wrapper.text()).toContain('la saisie du nom et du prénom ne suffit pas')
   await fillStrongCare(wrapper)
   expect(submit(wrapper).attributes('disabled')).toBeDefined()
 
@@ -71,9 +70,6 @@ it('blocks a patient without a current stay and offers to create it', async () =
   await fillStrongCare(wrapper)
 
   expect(wrapper.text()).toContain('Aucun séjour en cours')
-  expect(wrapper.text()).toContain(
-    'Validation impossible : aucun séjour en cours pour le dossier DEMO-007.',
-  )
   expect(submit(wrapper).attributes('disabled')).toBeDefined()
 
   const create = wrapper

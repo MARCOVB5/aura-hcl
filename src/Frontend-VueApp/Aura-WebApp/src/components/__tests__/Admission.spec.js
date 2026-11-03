@@ -2,7 +2,14 @@ import { afterEach, expect, it, vi } from 'vitest'
 import { flushPromises, mount } from '@vue/test-utils'
 import AdmissionSearchView from '../../views/AdmissionSearchView.vue'
 import StayFormView from '../../views/StayFormView.vue'
-import { LOCATIONS, mockApi, sentTo } from './mockApi.js'
+import { mockApi, sentTo } from './mockApi.js'
+
+// the input of the field whose label starts with this text
+const input = (wrapper, label) =>
+  wrapper
+    .findAll('.field')
+    .find((f) => f.find('.field-label').exists() && f.get('.field-label').text().startsWith(label))
+    .get('input')
 
 const LEA = {
   id: 3,
@@ -34,8 +41,8 @@ it('finds patients matching every filled criterion, ignoring accents', async () 
   const wrapper = mount(AdmissionSearchView)
   expect(wrapper.get('button[type="submit"]').attributes('disabled')).toBeDefined()
 
-  await wrapper.get('input[placeholder="Ex. : Exemple"]').setValue('exemple')
-  await wrapper.get('input[placeholder="Ex. : Léa"]').setValue('lea')
+  await input(wrapper, 'Nom').setValue('exemple')
+  await input(wrapper, 'Prénom').setValue('lea')
   await wrapper.get('form').trigger('submit')
   await flushPromises()
 
@@ -51,13 +58,12 @@ it('offers to create the patient with the search criteria when nothing matches',
   mockFetch(200, [LEA])
   const wrapper = mount(AdmissionSearchView)
 
-  await wrapper.get('input[placeholder="Ex. : Exemple"]').setValue('Delmas')
-  await wrapper.get('input[placeholder="Ex. : Léa"]').setValue('Nora')
+  await input(wrapper, 'Nom').setValue('Delmas')
+  await input(wrapper, 'Prénom').setValue('Nora')
   await wrapper.get('form').trigger('submit')
   await flushPromises()
 
   expect(wrapper.text()).toContain('Aucun patient trouvé')
-  expect(wrapper.text()).toContain('créez un dossier pour Nora Delmas')
   await wrapper.get('.placeholder .btn-primary').trigger('click')
   expect(wrapper.emitted('create-patient')[0]).toEqual([
     { nameFamily: 'Delmas', nameGiven: 'Nora', ipp: '' },
@@ -66,10 +72,7 @@ it('offers to create the patient with the search criteria when nothing matches',
 
 it('creates the stay for the selected patient, in the chosen room', async () => {
   const created = { encounter_id: 1, encounter: { patient: LEA } }
-  mockApi([
-    ['GET', /\/api\/locations$/, 200, LOCATIONS],
-    ['POST', /\/api\/hospitalizations$/, 201, created],
-  ])
+  mockApi([['POST', /\/api\/hospitalizations$/, 201, created]])
   const wrapper = mount(StayFormView, { props: { patient: LEA } })
   await flushPromises()
 
@@ -82,7 +85,7 @@ it('creates the stay for the selected patient, in the chosen room', async () => 
   await wrapper.get('input[maxlength="255"]').setValue('Choc septique')
   // the first location is required
   expect(wrapper.get('button[type="submit"]').attributes('disabled')).toBeDefined()
-  await wrapper.get('select[required]').setValue(LOCATIONS[1].id)
+  await wrapper.get('input[maxlength="128"]').setValue('  Chambre 12, lit A ')
   await wrapper.get('form').trigger('submit')
   await flushPromises()
 
@@ -96,7 +99,7 @@ it('creates the stay for the selected patient, in the chosen room', async () => 
         admission_date: '2026-10-23T08:05:00',
         expected_discharge_date: null,
         reason: 'Choc septique',
-        current_location_id: LOCATIONS[1].id,
+        location: 'Chambre 12, lit A',
       },
     },
   ])
@@ -116,14 +119,11 @@ it('refuses an expected discharge before the admission', async () => {
 })
 
 it('shows the backend message for a duplicate stay number', async () => {
-  mockApi([
-    ['GET', /\/api\/locations$/, 200, LOCATIONS],
-    ['POST', /\/api\/hospitalizations$/, 409, { detail: 'Stay number already registered' }],
-  ])
+  mockApi([['POST', /\/api\/hospitalizations$/, 409, { detail: 'Stay number already registered' }]])
   const wrapper = mount(StayFormView, { props: { patient: NICOLAS } })
   await flushPromises()
 
-  await wrapper.get('select[required]').setValue(LOCATIONS[0].id)
+  await wrapper.get('input[maxlength="128"]').setValue('Box 3')
   await wrapper.get('form').trigger('submit')
   await flushPromises()
 

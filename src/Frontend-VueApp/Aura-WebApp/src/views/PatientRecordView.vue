@@ -1,11 +1,10 @@
 <script setup>
-import { computed, onMounted, reactive, ref } from 'vue'
+import { computed, nextTick, onMounted, reactive, ref } from 'vue'
 import AppIcon from '../components/AppIcon.vue'
 import DateInput from '../components/DateInput.vue'
 import {
   deleteHospitalization,
   getPatient,
-  listLocations,
   listPatientHospitalizations,
   updateHospitalization,
 } from '../api.js'
@@ -15,12 +14,13 @@ const GENDER_LABELS = { female: 'Féminin', male: 'Masculin', other: 'Autre' }
 
 const props = defineProps({
   patientId: { type: Number, required: true },
+  // opened with "Modifier le séjour" from the patient list: the stays are shown in edit mode
+  editStays: { type: Boolean, default: false },
 })
 const emit = defineEmits(['back', 'edit', 'add-stay'])
 
 const patient = ref(null)
 const stays = ref([])
-const locations = ref([])
 const loading = ref(true)
 const error = ref('')
 
@@ -28,21 +28,26 @@ async function load() {
   loading.value = true
   error.value = ''
   try {
-    const [p, h, l] = await Promise.all([
+    const [p, h] = await Promise.all([
       getPatient(props.patientId),
       listPatientHospitalizations(props.patientId),
-      listLocations(),
     ])
     patient.value = p
     stays.value = h.map((x) => x.encounter)
-    locations.value = l
   } catch (e) {
     error.value = e.message
   } finally {
     loading.value = false
   }
 }
-onMounted(load)
+const staysCard = ref(null)
+onMounted(async () => {
+  await load()
+  if (!props.editStays || error.value) return
+  if (stays.value.length) startEditing()
+  await nextTick()
+  staysCard.value?.scrollIntoView?.({ block: 'start' })
+})
 
 const NOT_SET = 'Non renseigné'
 const name = computed(() => (patient.value ? patientName(patient.value) || 'Patient sous X' : ''))
@@ -68,7 +73,7 @@ const fields = computed(() => {
 // ---- stays: read mode, or edit mode with one row per stay ----
 
 const editingStays = ref(false)
-const drafts = ref([]) // { id, start, end, locationId, removed }
+const drafts = ref([]) // { id, start, end, location, removed }
 const savingStays = ref(false)
 const staysError = ref('')
 
@@ -80,7 +85,7 @@ function startEditing() {
       id: s.id,
       start: dateOf(s.admission_date),
       end: dateOf(s.actual_discharge_date),
-      locationId: s.current_location?.id ?? '',
+      location: s.location ?? '',
       removed: false,
     }),
   )
@@ -114,8 +119,8 @@ async function saveStays() {
         changes.actual_discharge_date = draft.end
           ? withDay(draft.end, stay.actual_discharge_date, '12:00:00')
           : null
-      if ((draft.locationId || null) !== (stay.current_location?.id ?? null))
-        changes.current_location_id = draft.locationId || null
+      if ((draft.location.trim() || null) !== stay.location)
+        changes.location = draft.location.trim() || null
       if (Object.keys(changes).length) {
         await updateHospitalization(draft.id, changes)
         saved++
@@ -186,13 +191,10 @@ async function saveStays() {
               <dd v-else class="not-set">{{ NOT_SET }}</dd>
             </div>
           </dl>
-          <div class="notice">
-            Les informations absentes du dossier sont indiquées « Non renseigné ».
-          </div>
         </div>
       </section>
 
-      <section class="card">
+      <section ref="staysCard" class="card">
         <div class="card-header with-action">
           <div>
             <h2 class="card-title">Informations du séjour</h2>
@@ -220,10 +222,10 @@ async function saveStays() {
           <button
             v-else-if="stays.length"
             type="button"
-            class="btn btn-small"
+            class="btn btn-primary"
             @click="startEditing"
           >
-            <AppIcon name="pencil" :size="14" />
+            <AppIcon name="pencil" :size="16" />
             Modifier le séjour
           </button>
         </div>
@@ -254,8 +256,8 @@ async function saveStays() {
               </div>
               <div>
                 <dt>Localisation</dt>
-                <dd :class="{ 'not-set': !stay.current_location }">
-                  {{ stay.current_location?.name || NOT_SET }}
+                <dd :class="{ 'not-set': !stay.location }">
+                  {{ stay.location || NOT_SET }}
                 </dd>
               </div>
               <div>
@@ -283,10 +285,12 @@ async function saveStays() {
               </label>
               <label class="field">
                 <span class="field-label">Localisation</span>
-                <select v-model="draft.locationId" class="input" :disabled="draft.removed">
-                  <option value="">Non renseignée</option>
-                  <option v-for="l in locations" :key="l.id" :value="l.id">{{ l.name }}</option>
-                </select>
+                <input
+                  v-model="draft.location"
+                  class="input"
+                  maxlength="128"
+                  :disabled="draft.removed"
+                />
               </label>
               <button
                 type="button"
