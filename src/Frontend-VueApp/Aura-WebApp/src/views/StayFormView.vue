@@ -1,18 +1,30 @@
 <script setup>
-import { computed, reactive, ref } from 'vue'
+import { computed, onMounted, reactive, ref } from 'vue'
 import AppIcon from '../components/AppIcon.vue'
-import { createHospitalization } from '../api.js'
+import DateTimeInput from '../components/DateTimeInput.vue'
+import { createHospitalization, listLocations } from '../api.js'
 import { STAY_STATUSES, STAY_TYPES, patientDetails, patientName } from '../format.js'
 
 const props = defineProps({
   patient: { type: Object, required: true },
   // the patient was just created from the admission search
   patientJustCreated: { type: Boolean, default: false },
+  // opened from "Planifier un soin" because the patient has no current stay
+  forCare: { type: Boolean, default: false },
   backLabel: { type: String, default: 'Retour à la recherche' },
 })
 const emit = defineEmits(['created', 'back'])
 
-// value for <input type="datetime-local">, in local time: "2026-10-23T08:05"
+const locations = ref([])
+onMounted(async () => {
+  try {
+    locations.value = await listLocations()
+  } catch (e) {
+    error.value = e.message
+  }
+})
+
+// value of a DateTimeInput, in local time: "2026-10-23T08:05"
 function localDateTime(date) {
   const pad = (n) => String(n).padStart(2, '0')
   return (
@@ -34,12 +46,15 @@ const form = reactive({
   type: 'INPATIENT',
   expectedDischargeDate: '',
   reason: '',
+  locationId: '',
 })
 const submitting = ref(false)
 const error = ref('')
 
 const name = computed(() => patientName(props.patient) || 'Patient sous X')
-const requiredFilled = computed(() => form.stayNumber.trim() !== '' && form.admissionDate !== '')
+const requiredFilled = computed(
+  () => form.stayNumber.trim() !== '' && form.admissionDate !== '' && form.locationId !== '',
+)
 // both values have the same "YYYY-MM-DDTHH:mm" format, so they compare as strings
 const dischargeBeforeAdmission = computed(
   () => form.expectedDischargeDate !== '' && form.expectedDischargeDate < form.admissionDate,
@@ -52,7 +67,7 @@ const statusText = computed(() => {
   if (dischargeBeforeAdmission.value) return 'La sortie prévue doit être après la date d’admission.'
   if (requiredFilled.value)
     return 'Toutes les informations obligatoires sont renseignées. Vous pouvez créer le séjour.'
-  return 'Renseignez le numéro de séjour et la date d’admission pour activer le bouton Valider.'
+  return 'Renseignez le numéro de séjour, la date d’admission et la première localisation pour activer le bouton Valider.'
 })
 
 const toApi = (value) => (value ? `${value}:00` : null)
@@ -70,6 +85,7 @@ async function submit() {
       admission_date: toApi(form.admissionDate),
       expected_discharge_date: toApi(form.expectedDischargeDate),
       reason: form.reason.trim() || null,
+      current_location_id: form.locationId,
     })
     emit('created', hospitalization)
   } catch (e) {
@@ -104,12 +120,18 @@ async function submit() {
       Le patient {{ name }}{{ patient.ipp ? ` (${patient.ipp})` : '' }} a bien été créé et est déjà
       sélectionné pour ce séjour.
     </div>
+    <div v-if="forCare" class="notice notice-primary">
+      <AppIcon name="info" :size="16" />
+      {{ name }} n’a aucun séjour en cours. Après la création du séjour, la planification du soin
+      reprendra avec ce patient.
+    </div>
 
     <form class="card" novalidate @submit.prevent="submit">
       <div class="card-header">
         <h2 class="card-title">Informations du séjour</h2>
         <p class="card-description">
-          Le patient, le numéro de séjour et la date d’admission sont obligatoires.
+          Le patient, le numéro de séjour, la date d’admission et la première localisation sont
+          obligatoires.
         </p>
       </div>
 
@@ -136,9 +158,16 @@ async function submit() {
             <span class="field-label">Numéro de séjour *</span>
             <input v-model="form.stayNumber" class="input" maxlength="32" required />
           </label>
-          <label class="field">
+          <div class="field">
             <span class="field-label">Date et heure d’admission *</span>
-            <input v-model="form.admissionDate" type="datetime-local" class="input" required />
+            <DateTimeInput v-model="form.admissionDate" label="Admission" required />
+          </div>
+          <label class="field">
+            <span class="field-label">Première localisation *</span>
+            <select v-model="form.locationId" class="input" required>
+              <option value="" disabled>Sélectionner un service, une chambre et un lit</option>
+              <option v-for="l in locations" :key="l.id" :value="l.id">{{ l.name }}</option>
+            </select>
           </label>
           <label class="field">
             <span class="field-label">Statut</span>
@@ -156,15 +185,14 @@ async function submit() {
               </option>
             </select>
           </label>
-          <label class="field">
+          <div class="field">
             <span class="field-label">Sortie prévue</span>
-            <input
+            <DateTimeInput
               v-model="form.expectedDischargeDate"
-              type="datetime-local"
-              class="input"
+              label="Sortie prévue"
               :min="form.admissionDate"
             />
-          </label>
+          </div>
           <label class="field">
             <span class="field-label">Motif d’admission</span>
             <input

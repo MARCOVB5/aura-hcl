@@ -1,7 +1,6 @@
 from pydantic import BaseModel, ConfigDict, Field
 
 from app.models.patient import IdentificationStatus
-from app.models.person import AdministrativeGender
 from app.schemas.Allergy import AllergyName, AllergyOut
 from app.schemas.Person import PersonCreate, PersonOut
 
@@ -14,6 +13,14 @@ class PatientCreate(BaseModel):
     allergies: list[
         AllergyName
     ] = []  # the ones known at admission, more can be added later
+    # UNKNOWN for a "Patient sous X" (anonymous): names are then optional
+    identification_status: IdentificationStatus = IdentificationStatus.PROVISIONAL
+    contact: str | None = Field(default=None, max_length=128)  # phone number
+    personal_info: str | None = None  # history, context, particularities
+
+
+class PatientUpdate(PatientCreate):
+    """Replaces the whole patient record: allergies missing from the list are removed"""
 
 
 class PatientOut(BaseModel):
@@ -25,3 +32,5 @@ class PatientOut(BaseModel):
     active: bool
     person: PersonOut
     allergies: list[AllergyOut]
+    contact: str | None
+    personal_info: str | None

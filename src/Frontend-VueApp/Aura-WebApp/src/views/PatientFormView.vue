@@ -1,26 +1,47 @@
 <script setup>
 import { computed, reactive, ref } from 'vue'
 import AppIcon from '../components/AppIcon.vue'
-import { createPatient } from '../api.js'
+import DateInput from '../components/DateInput.vue'
+import { createPatient, updatePatient } from '../api.js'
+import { patientName } from '../format.js'
 
 const props = defineProps({
   // criteria typed in the admission search: { nameFamily, nameGiven, ipp, contact }
   prefill: { type: Object, default: () => ({}) },
   // opened from "Nouvelle admission": the stay form follows the creation
   forAdmission: { type: Boolean, default: false },
+  // edit mode: the patient whose record is changed
+  patient: { type: Object, default: null },
 })
-const emit = defineEmits(['created', 'cancel'])
+const emit = defineEmits(['created', 'saved', 'cancel'])
+
+const editing = computed(() => props.patient !== null)
+const start = props.patient
+  ? {
+      nameFamily: props.patient.person.name_family ?? '',
+      nameGiven: props.patient.person.name_given ?? '',
+      anonymous: props.patient.identification_status === 'UNKNOWN',
+      gender: ['female', 'male'].includes(props.patient.person.gender)
+        ? props.patient.person.gender
+        : '',
+      birthDate: props.patient.person.birth_date ?? '',
+      contact: props.patient.contact ?? '',
+      ipp: props.patient.ipp ?? '',
+      personalInfo: props.patient.personal_info ?? '',
+      allergies: props.patient.allergies.map((a) => a.name).join('\n'),
+    }
+  : {}
 
 const form = reactive({
-  nameFamily: props.prefill.nameFamily ?? '',
-  nameGiven: props.prefill.nameGiven ?? '',
-  anonymous: false, // "Patient sous X": names become optional
-  gender: '',
-  birthDate: '',
-  contact: props.prefill.contact ?? '',
-  ipp: props.prefill.ipp ?? '',
-  personalInfo: '',
-  allergies: '',
+  nameFamily: start.nameFamily ?? props.prefill.nameFamily ?? '',
+  nameGiven: start.nameGiven ?? props.prefill.nameGiven ?? '',
+  anonymous: start.anonymous ?? false, // "Patient sous X": names become optional
+  gender: start.gender ?? '',
+  birthDate: start.birthDate ?? '',
+  contact: start.contact ?? props.prefill.contact ?? '',
+  ipp: start.ipp ?? props.prefill.ipp ?? '',
+  personalInfo: start.personalInfo ?? '',
+  allergies: start.allergies ?? '',
 })
 const submitting = ref(false)
 const error = ref('')
@@ -32,6 +53,10 @@ const fullName = computed(() => [form.nameGiven.trim(), form.nameFamily.trim()].
 
 // texts of the three states of the Figma frame "Formulaire créer patient"
 const pageDescription = computed(() => {
+  if (editing.value) {
+    const name = patientName(props.patient) || 'Patient sous X'
+    return `${name} · Identifiant : ${props.patient.ipp || 'non renseigné'}`
+  }
   if (props.forAdmission) {
     const who = fullName.value ? `de ${fullName.value}` : 'du patient'
     return `Informations reprises de la recherche. Après validation, vous créerez le séjour ${who}.`
@@ -47,6 +72,7 @@ const cardDescription = computed(() =>
     : 'Nom et prénom sont obligatoires, sauf si le patient est sous X.',
 )
 const statusText = computed(() => {
+  if (editing.value) return '* Champs obligatoires · Le séjour se modifie séparément.'
   if (props.forAdmission && canSubmit.value)
     return 'Valider crée le patient, puis ouvre la création de son séjour.'
   if (form.anonymous) return 'Patient sous X : aucun champ obligatoire.'
@@ -68,19 +94,22 @@ async function submit() {
   if (!canSubmit.value) return
   submitting.value = true
   error.value = ''
+  const data = {
+    person: {
+      name_family: orNull(form.nameFamily),
+      name_given: orNull(form.nameGiven),
+      birth_date: form.birthDate || null,
+      gender: form.gender || 'unknown',
+    },
+    ipp: orNull(form.ipp),
+    identification_status: form.anonymous ? 'UNKNOWN' : 'PROVISIONAL',
+    contact: orNull(form.contact),
+    personal_info: orNull(form.personalInfo),
+    allergies: parseAllergies(form.allergies),
+  }
   try {
-    // contact and personal info are not accepted by the backend yet
-    const patient = await createPatient({
-      person: {
-        name_family: orNull(form.nameFamily),
-        name_given: orNull(form.nameGiven),
-        birth_date: form.birthDate || null,
-        gender: form.gender || 'unknown',
-      },
-      ipp: orNull(form.ipp),
-      allergies: parseAllergies(form.allergies),
-    })
-    emit('created', patient)
+    if (editing.value) emit('saved', await updatePatient(props.patient.id, data))
+    else emit('created', await createPatient(data))
   } catch (e) {
     error.value = e.message
   } finally {
@@ -94,11 +123,16 @@ async function submit() {
     <h2 class="service-name">Service de réanimation</h2>
     <div class="title-row">
       <div>
-        <h1 class="page-title">Créer un patient</h1>
+        <h1 class="page-title">
+          {{ editing ? 'Modifier les informations du patient' : 'Créer un patient' }}
+        </h1>
         <p class="page-description">{{ pageDescription }}</p>
       </div>
       <button v-if="forAdmission" type="button" class="btn btn-small" @click="emit('cancel')">
         Retour à la recherche
+      </button>
+      <button v-else-if="editing" type="button" class="btn btn-small" @click="emit('cancel')">
+        Retour à la fiche
       </button>
     </div>
   </header>
@@ -156,10 +190,10 @@ async function submit() {
           </fieldset>
           <label class="field">
             <span class="field-label">Date de naissance</span>
-            <input v-model="form.birthDate" type="date" class="input" />
+            <DateInput v-model="form.birthDate" />
           </label>
           <label class="field">
-            <span class="field-label">Contact <span class="not-saved">non enregistré</span></span>
+            <span class="field-label">Contact</span>
             <input
               v-model="form.contact"
               type="tel"
@@ -175,9 +209,7 @@ async function submit() {
 
         <div class="row row-2">
           <label class="field">
-            <span class="field-label">
-              Informations personnelles <span class="not-saved">non enregistré</span>
-            </span>
+            <span class="field-label">Informations personnelles</span>
             <textarea
               v-model="form.personalInfo"
               class="input"
@@ -195,7 +227,7 @@ async function submit() {
         </div>
 
         <div class="block block-validation">
-          <div class="notice">
+          <div v-if="!editing" class="notice">
             <AppIcon name="info" :size="16" />
             IPP, contact, informations personnelles et allergies peuvent être ajoutés plus tard.
           </div>
@@ -210,7 +242,7 @@ async function submit() {
                 Annuler
               </button>
               <button type="submit" class="btn btn-primary" :disabled="!canSubmit">
-                {{ submitting ? 'Envoi…' : 'Valider' }}
+                {{ submitting ? 'Envoi…' : editing ? 'Enregistrer' : 'Valider' }}
               </button>
             </div>
           </div>
@@ -278,12 +310,5 @@ async function submit() {
 
 .sex-options .inline-option {
   gap: 6px;
-}
-
-.not-saved {
-  margin-left: 4px;
-  color: var(--color-text-muted);
-  font-size: 11px;
-  font-weight: 400;
 }
 </style>

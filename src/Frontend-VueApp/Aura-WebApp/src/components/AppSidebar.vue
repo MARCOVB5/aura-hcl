@@ -1,13 +1,16 @@
 <script setup>
-import { ref } from 'vue'
 import AppIcon from './AppIcon.vue'
+import { CURRENT_USER } from '../currentUser.js'
 
 defineProps({
   section: { type: String, required: true },
   selectedPatientName: { type: String, default: '' },
 })
 const emit = defineEmits(['navigate'])
-// "Du patient sélectionné": the calendar only shows the selected patient's stays
+// what the calendar shows: the department's care, the user's own care,
+// or only the care and stays of the patient selected in the list
+const showServiceCare = defineModel('showServiceCare', { type: Boolean, default: true })
+const showMyCare = defineModel('showMyCare', { type: Boolean, default: true })
 const showSelectedPatient = defineModel('showSelectedPatient', { type: Boolean, default: false })
 
 const NAV_ITEMS = [
@@ -15,10 +18,6 @@ const NAV_ITEMS = [
   { id: 'patients', label: 'Patients', icon: 'circle-user' },
   { id: 'admission', label: 'Nouvelle Admission', icon: 'plus' },
 ]
-
-// care calendars: no effect until care appointments exist in the backend
-const showServiceCare = ref(true)
-const showMyCare = ref(true)
 </script>
 
 <template>
@@ -72,10 +71,10 @@ const showMyCare = ref(true)
     </section>
 
     <div class="account">
-      <div class="avatar">B</div>
+      <div class="avatar">{{ CURRENT_USER.name_given[0] }}</div>
       <div>
-        <div class="account-name">Bruno</div>
-        <div class="account-status">Statut : Médecin</div>
+        <div class="account-name">{{ CURRENT_USER.name_given }} {{ CURRENT_USER.name_family }}</div>
+        <div class="account-status">Statut : {{ CURRENT_USER.status }}</div>
       </div>
     </div>
     <button type="button" class="nav-item logout">

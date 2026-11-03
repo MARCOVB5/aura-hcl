@@ -44,8 +44,10 @@ it('sends the patient to the API and emits the created patient', async () => {
   await wrapper.get('input[placeholder="Ex. : Doe"]').setValue('  Doxa ')
   await wrapper.get('input[placeholder="Ex. : John"]').setValue('Loui')
   await wrapper.get('input[value="female"]').setValue(true)
-  await wrapper.get('input[type="date"]').setValue('1990-11-06')
+  await wrapper.get('input[placeholder="JJ/MM/AAAA"]').setValue('06/11/1990')
   await wrapper.get('input[placeholder="Ex. : 123456789"]').setValue('123')
+  await wrapper.get('input[type="tel"]').setValue(' 06 12 34 56 78 ')
+  await wrapper.findAll('textarea')[0].setValue('Antécédents cardiaques')
   await wrapper.findAll('textarea')[1].setValue('Pénicilline\nLatex, Iode')
   await wrapper.get('form').trigger('submit')
   await flushPromises()
@@ -56,9 +58,47 @@ it('sends the patient to the API and emits the created patient', async () => {
   expect(JSON.parse(options.body)).toEqual({
     person: { name_family: 'Doxa', name_given: 'Loui', birth_date: '1990-11-06', gender: 'female' },
     ipp: '123',
+    identification_status: 'PROVISIONAL',
+    contact: '06 12 34 56 78',
+    personal_info: 'Antécédents cardiaques',
     allergies: ['Pénicilline', 'Latex', 'Iode'],
   })
   expect(wrapper.emitted('created')[0]).toEqual([created])
+})
+
+it('edits an existing patient: prefilled, then saved with PUT', async () => {
+  const patient = {
+    id: 2,
+    ipp: 'DEMO-002',
+    identification_status: 'PROVISIONAL',
+    person: {
+      name_family: 'Larmou',
+      name_given: 'Thomas',
+      birth_date: '1975-08-27',
+      gender: 'unknown',
+    },
+    allergies: [{ id: 1, name: 'Latex' }],
+    contact: null,
+    personal_info: null,
+  }
+  mockFetch(200, { ...patient, ipp: 'DEMO-002-B' })
+  const wrapper = mount(PatientFormView, { props: { patient } })
+
+  expect(wrapper.get('h1').text()).toBe('Modifier les informations du patient')
+  expect(wrapper.text()).toContain('Thomas Larmou · Identifiant : DEMO-002')
+  expect(wrapper.get('input[placeholder="Ex. : Doe"]').element.value).toBe('Larmou')
+  expect(wrapper.get('input[placeholder="JJ/MM/AAAA"]').element.value).toBe('27/08/1975')
+  expect(wrapper.findAll('textarea')[1].element.value).toBe('Latex')
+
+  await wrapper.get('input[placeholder="Ex. : 123456789"]').setValue('DEMO-002-B')
+  await wrapper.get('form').trigger('submit')
+  await flushPromises()
+
+  const [url, options] = fetch.mock.calls[0]
+  expect(url).toMatch(/\/api\/patients\/2$/)
+  expect(options.method).toBe('PUT')
+  expect(JSON.parse(options.body)).toMatchObject({ ipp: 'DEMO-002-B', allergies: ['Latex'] })
+  expect(wrapper.emitted('saved')[0][0].ipp).toBe('DEMO-002-B')
 })
 
 it('sends gender "unknown" when no sex is chosen', async () => {

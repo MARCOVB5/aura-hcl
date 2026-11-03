@@ -2,6 +2,7 @@ import { afterEach, expect, it, vi } from 'vitest'
 import { flushPromises, mount } from '@vue/test-utils'
 import AdmissionSearchView from '../../views/AdmissionSearchView.vue'
 import StayFormView from '../../views/StayFormView.vue'
+import { LOCATIONS, mockApi, sentTo } from './mockApi.js'
 
 const LEA = {
   id: 3,
@@ -63,50 +64,66 @@ it('offers to create the patient with the search criteria when nothing matches',
   ])
 })
 
-it('creates the stay for the selected patient', async () => {
+it('creates the stay for the selected patient, in the chosen room', async () => {
   const created = { encounter_id: 1, encounter: { patient: LEA } }
-  mockFetch(201, created)
+  mockApi([
+    ['GET', /\/api\/locations$/, 200, LOCATIONS],
+    ['POST', /\/api\/hospitalizations$/, 201, created],
+  ])
   const wrapper = mount(StayFormView, { props: { patient: LEA } })
+  await flushPromises()
 
   expect(wrapper.text()).toContain('DEMO-003 · Née le 06/11/1990')
   expect(wrapper.get('.allergy').text()).toContain('Pénicilline')
 
   await wrapper.get('input[maxlength="32"]').setValue('SEJ-TEST-1')
-  await wrapper.findAll('input[type="datetime-local"]')[0].setValue('2026-10-23T08:05')
+  await wrapper.get('[aria-label="Admission : date"]').setValue('23/10/2026')
+  await wrapper.get('[aria-label="Admission : heure"]').setValue('08:05')
   await wrapper.get('input[maxlength="255"]').setValue('Choc septique')
+  // the first location is required
+  expect(wrapper.get('button[type="submit"]').attributes('disabled')).toBeDefined()
+  await wrapper.get('select[required]').setValue(LOCATIONS[1].id)
   await wrapper.get('form').trigger('submit')
   await flushPromises()
 
-  const [url, options] = fetch.mock.calls[0]
-  expect(url).toMatch(/\/api\/hospitalizations$/)
-  expect(JSON.parse(options.body)).toEqual({
-    encounter: {
-      patient_id: 3,
-      stay_number: 'SEJ-TEST-1',
-      status: 'in-progress',
-      encounter_type_code: 'INPATIENT',
-      admission_date: '2026-10-23T08:05:00',
-      expected_discharge_date: null,
-      reason: 'Choc septique',
+  expect(sentTo('POST', /\/api\/hospitalizations$/)).toEqual([
+    {
+      encounter: {
+        patient_id: 3,
+        stay_number: 'SEJ-TEST-1',
+        status: 'in-progress',
+        encounter_type_code: 'INPATIENT',
+        admission_date: '2026-10-23T08:05:00',
+        expected_discharge_date: null,
+        reason: 'Choc septique',
+        current_location_id: LOCATIONS[1].id,
+      },
     },
-  })
+  ])
   expect(wrapper.emitted('created')[0]).toEqual([created])
 })
 
 it('refuses an expected discharge before the admission', async () => {
   const wrapper = mount(StayFormView, { props: { patient: LEA } })
-  const [admission, discharge] = wrapper.findAll('input[type="datetime-local"]')
+  const field = (name) => wrapper.get(`[aria-label="${name}"]`)
 
-  await admission.setValue('2026-10-23T08:00')
-  await discharge.setValue('2026-10-22T08:00')
+  await field('Admission : date').setValue('23/10/2026')
+  await field('Admission : heure').setValue('08:00')
+  await field('Sortie prévue : date').setValue('22/10/2026')
+  await field('Sortie prévue : heure').setValue('08:00')
   expect(wrapper.get('button[type="submit"]').attributes('disabled')).toBeDefined()
   expect(wrapper.text()).toContain('La sortie prévue doit être après la date d’admission.')
 })
 
 it('shows the backend message for a duplicate stay number', async () => {
-  mockFetch(409, { detail: 'Stay number already registered' })
+  mockApi([
+    ['GET', /\/api\/locations$/, 200, LOCATIONS],
+    ['POST', /\/api\/hospitalizations$/, 409, { detail: 'Stay number already registered' }],
+  ])
   const wrapper = mount(StayFormView, { props: { patient: NICOLAS } })
+  await flushPromises()
 
+  await wrapper.get('select[required]').setValue(LOCATIONS[0].id)
   await wrapper.get('form').trigger('submit')
   await flushPromises()
 

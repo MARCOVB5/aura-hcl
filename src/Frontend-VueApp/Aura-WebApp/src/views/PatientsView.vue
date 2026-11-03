@@ -5,7 +5,7 @@ import { listPatients } from '../api.js'
 import { formatDate, normalize, patientName } from '../format.js'
 
 const selected = defineModel('selected', { type: Object, default: null })
-const emit = defineEmits(['create', 'create-stay'])
+const emit = defineEmits(['create', 'create-stay', 'open', 'edit'])
 
 const patients = ref([])
 const loading = ref(true)
@@ -104,29 +104,32 @@ const countLabel = computed(() => {
           @click="selected = patient"
         >
           <td class="col-patient">
-            <label class="patient-select">
+            <div class="patient-select">
               <input
                 type="radio"
                 name="selected-patient"
                 class="radio"
+                :aria-label="`Sélectionner ${patientName(patient) || 'ce patient sous X'}`"
                 :checked="selected?.id === patient.id"
                 @change="selected = patient"
               />
-              <span v-if="patientName(patient)" class="patient-name">{{
-                patientName(patient)
-              }}</span>
-              <span v-else class="patient-name muted"><em>Patient sous X</em></span>
-            </label>
+              <button
+                type="button"
+                class="patient-link"
+                title="Ouvrir la fiche patient"
+                @click.stop="emit('open', patient)"
+              >
+                <span v-if="patientName(patient)" class="patient-name">{{
+                  patientName(patient)
+                }}</span>
+                <span v-else class="patient-name muted"><em>Patient sous X</em></span>
+              </button>
+            </div>
           </td>
           <td class="col-id muted">{{ patient.ipp || 'Non renseigné' }}</td>
           <td class="col-birth">{{ formatDate(patient.person.birth_date) || '—' }}</td>
           <td class="col-action">
-            <button
-              type="button"
-              class="btn btn-small"
-              disabled
-              title="La modification d’un patient n’est pas encore disponible"
-            >
+            <button type="button" class="btn btn-small" @click.stop="emit('edit', patient)">
               <AppIcon name="pencil" :size="14" />
               Modifier
             </button>
@@ -189,5 +192,19 @@ const countLabel = computed(() => {
 
 .retry {
   margin-left: auto;
+}
+
+/* the name opens the patient record */
+.patient-link {
+  padding: 0;
+  border: none;
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
+}
+
+.patient-link:hover .patient-name {
+  color: var(--color-primary);
+  text-decoration: underline;
 }
 </style>
