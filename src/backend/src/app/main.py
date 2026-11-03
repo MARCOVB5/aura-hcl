@@ -1,5 +1,6 @@
-from app.api.routes import care, hospitalizations, patients
-from fastapi import FastAPI, Request
+from app.api.routes import auth, care, hospitalizations, patients
+from fastapi import Depends, FastAPI, Request
+from app.deps import get_current_user
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
@@ -16,9 +17,11 @@ app.add_middleware(
   allow_headers=["*"],
 )
 
-app.include_router(patients.router)
-app.include_router(hospitalizations.router)
-app.include_router(care.router)
+app.include_router(patients.router, dependencies=[Depends(get_current_user)])
+app.include_router(hospitalizations.router, dependencies=[Depends(get_current_user)])
+app.include_router(care.router, dependencies=[Depends(get_current_user)])
+
+app.include_router(auth.router)
 
 @app.exception_handler(AppError)
 async def handle_app_error(request : Request, exc : AppError):

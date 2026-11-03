@@ -68,3 +68,73 @@ Rules / Notes:
 | `uv run alembic downgrade -1` | undo the last migration |
 | `docker compose down -v` | **deletes the database** (then `docker compose up -d db` + `alembic upgrade head`) |
 | `docker exec -it aura-db mariadb -uaura -paura si_hospitalier_db` | SQL shell in the database |
+
+## Practitioner authentication
+
+Before running migrations or starting the API, generate a signing secret:
+
+```bash
+uv run python -c "import secrets; print(secrets.token_urlsafe(32))"
+```
+
+Copy the output into `JWT_SECRET` in your local `.env` (at least 32 characters).
+Replace the example placeholder; do not commit the generated secret. Keep it
+stable across restarts; changing it invalidates outstanding tokens.
+
+From `src/backend`, install dependencies and migrate:
+
+```bash
+uv sync
+uv run alembic upgrade head
+```
+
+Populate three synthetic practitioners and their accounts for local demos:
+
+```bash
+uv run python scripts/populate_practitioners.py
+```
+
+The script prompts for a password and confirmation without displaying it. The
+three accounts (`demo.medecin`, `demo.infirmier`, `demo.kine`) share that supplied
+password, each stored as a separate Argon2 hash. Repeating the script leaves
+matching accounts and their passwords unchanged. Conflicting demo records abort
+and roll back the whole operation. Run only against the intended local demo DB.
+
+To give an existing active practitioner an account:
+
+```bash
+uv run python scripts/create_user.py --practitioner-id 1 --username my.username
+```
+
+Usernames are trimmed and lowercased. Each practitioner can have at most one
+account. Passwords are preserved exactly and stored only as hashes. Neither
+script prints passwords or hashes. There is no public registration endpoint.
+
+Login accepts JSON at `POST /api/auth/login`:
+
+```json
+{"username": "demo.medecin", "password": "the password you supplied"}
+```
+
+It returns `access_token`, `token_type: "bearer"`, and `expires_in: 28800`.
+Send the returned token with every application API call:
+
+```http
+GET /api/auth/me
+Authorization: Bearer <access_token>
+```
+
+`/api/auth/me` returns `id`, `username`, `practitioner_id`, `name_given`,
+`name_family`, and `profession`. All patient, hospitalization, care, and reference
+endpoints now require authentication. All active practitioners have the same
+existing permissions. Missing/invalid/expired tokens and accounts linked to an
+inactive practitioner receive `401`. Credentials are never returned.
+
+Sessions expire after eight hours without renewal. Logout is performed by the
+client discarding its token; there is no logout endpoint, refresh flow, or token
+revocation table. A copied token stays valid until expiry unless its account is
+deleted or practitioner deactivated. Use HTTPS when sending credentials/tokens
+outside local development.
+
+The frontend is not integrated yet: its existing API requests will receive `401`
+until it adds login and bearer headers. Existing CORS settings are unchanged.
