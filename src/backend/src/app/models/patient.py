@@ -4,8 +4,9 @@ from typing import TYPE_CHECKING
 from app.models import Base
 from app.models.common import ID, enum_values
 from app.models.pathology import ALLERGY_TYPE_CODE
+from app.models.person import ContactPointSystem
 
-from sqlalchemy import String, Enum, ForeignKey, UniqueConstraint, Boolean
+from sqlalchemy import String, Enum, ForeignKey, UniqueConstraint, Boolean, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 import enum
@@ -32,6 +33,8 @@ class Patient(Base):
   person_id : Mapped[int] = mapped_column(ID, ForeignKey("person.id"))
   identification_status : Mapped[IdentificationStatus] = mapped_column(Enum(IdentificationStatus, values_callable = enum_values),default = IdentificationStatus.PROVISIONAL) # check if provisional is better to define by default
   active : Mapped[bool] = mapped_column(Boolean, default = True) #????
+  # free text: history, context, particularities ("Informations personnelles" in the UI)
+  personal_info : Mapped[str | None] = mapped_column(Text)
 
   ## Asociations
   person : Mapped[Person] = relationship()
@@ -53,3 +56,9 @@ class Patient(Base):
   @property
   def allergens(self) ->list[Allergen]:
     return [p.allergen for p in self.allergies if p.allergen is not None]
+
+  @property
+  def contact(self) -> str | None:
+    """The patient's phone number, stored in the person's telecom list"""
+    phones = [t.value for t in self.person.telecom if t.system == ContactPointSystem.PHONE]
+    return phones[0] if phones else None

@@ -1,15 +1,14 @@
 from sqlalchemy import select
 from sqlalchemy.orm import Session, selectinload
 
+from app.dao.patient_dao import PATIENT_OPTIONS
 from app.models.encounter import Encounter
 from app.models.hospitalization import Hospitalization
-from app.models.patient import Patient
 
 
 _DETAIL_OPTIONS = (
-  selectinload(Hospitalization.encounter)
-    .selectinload(Encounter.patient)
-    .options(selectinload(Patient.person), selectinload(Patient.allergies)),
+  selectinload(Hospitalization.encounter).selectinload(Encounter.patient).options(*PATIENT_OPTIONS),
+  selectinload(Hospitalization.encounter),
 )
 
 

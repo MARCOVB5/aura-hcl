@@ -19,6 +19,11 @@
   --color-danger: #c4262e;
   --color-danger-soft: #fdf1f1;
   --color-danger-border: #f3caca;
+  --color-warning: #9a5b13;
+  --color-warning-soft: #fcf6ef;
+  --color-warning-border: #f0caa0;
+  --color-patient: #0088ff;
+  --color-patient-soft: #e8f3ff;
 
   --radius: 6px;
   --radius-card: 8px;
@@ -190,6 +195,11 @@ textarea {
   gap: 16px;
 }
 
+/* the buttons stay on the right when there is no text next to them */
+.actions > :only-child {
+  margin-left: auto;
+}
+
 .buttons {
   display: flex;
   gap: 12px;
@@ -268,6 +278,13 @@ textarea.input {
   border-color: var(--color-danger-border);
   background: var(--color-danger-soft);
   color: var(--color-danger);
+}
+
+/* something blocks the action (e.g. no current stay for a care) */
+.notice-warning {
+  border-color: var(--color-warning-border);
+  background: var(--color-warning-soft);
+  color: var(--color-warning);
 }
 
 .notice-primary {

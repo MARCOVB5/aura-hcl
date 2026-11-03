@@ -1,7 +1,12 @@
-from sqlalchemy import select
+from datetime import datetime
+
+from sqlalchemy import or_, select
 from sqlalchemy.orm import Session
 
-from app.models.encounter import Encounter
+from app.models.encounter import Encounter, EncounterStatus
+
+# a stay in one of these states is over (or never happened)
+CLOSED_STATUSES = (EncounterStatus.FINISHED, EncounterStatus.CANCELLED, EncounterStatus.ENTERED_IN_ERROR)
 
 
 class EncounterDAO:
@@ -16,7 +21,26 @@ class EncounterDAO:
     stmt = select(Encounter).where(Encounter.stay_number == stay_number)
     return self.session.scalar(stmt)
 
+  def get_current(self, patient_id: int, now: datetime) -> Encounter | None:
+    """The patient's stay in progress: started, not discharged, not closed (latest first)"""
+    stmt = (
+      select(Encounter)
+      .where(
+        Encounter.patient_id == patient_id,
+        Encounter.admission_date <= now,
+        or_(Encounter.actual_discharge_date.is_(None), Encounter.actual_discharge_date > now),
+        Encounter.status.not_in(CLOSED_STATUSES),
+      )
+      .order_by(Encounter.admission_date.desc())
+      .limit(1)
+    )
+    return self.session.scalar(stmt)
+
   def create(self, encounter: Encounter) -> Encounter:
     self.session.add(encounter)
     self.session.flush()
     return encounter
+
+  def delete(self, encounter: Encounter) -> None:
+    self.session.delete(encounter)
+    self.session.flush()

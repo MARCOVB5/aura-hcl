@@ -21,9 +21,6 @@ const loading = ref(false)
 const error = ref('')
 
 const hasCriteria = computed(() => Object.values(criteria).some((v) => v.trim() !== ''))
-const searchedName = computed(() =>
-  [criteria.nameGiven.trim(), criteria.nameFamily.trim()].join(' ').trim(),
-)
 
 // every filled criterion must match (case and accents ignored)
 function matches(patient) {
@@ -71,12 +68,7 @@ const countLabel = computed(() => {
   <header class="page-header">
     <h2 class="service-name">Service de réanimation</h2>
     <div class="title-row">
-      <div>
-        <h1 class="page-title">Nouvelle admission</h1>
-        <p class="page-description">
-          Identifiez le patient, puis renseignez les informations de son séjour.
-        </p>
-      </div>
+      <h1 class="page-title">Nouvelle admission</h1>
     </div>
   </header>
 
@@ -84,27 +76,23 @@ const countLabel = computed(() => {
     <form class="card" novalidate @submit.prevent="search">
       <div class="card-header">
         <h2 class="card-title">Rechercher un patient</h2>
-        <p class="card-description">
-          Recherchez un dossier existant avant de créer une nouvelle admission.
-        </p>
       </div>
       <div class="card-body">
         <div class="criteria">
           <label class="field">
             <span class="field-label">Nom</span>
-            <input v-model="criteria.nameFamily" class="input" placeholder="Ex. : Exemple" />
+            <input v-model="criteria.nameFamily" class="input" />
           </label>
           <label class="field">
             <span class="field-label">Prénom</span>
-            <input v-model="criteria.nameGiven" class="input" placeholder="Ex. : Léa" />
+            <input v-model="criteria.nameGiven" class="input" />
           </label>
           <label class="field">
             <span class="field-label">IPP</span>
-            <input v-model="criteria.ipp" class="input" placeholder="Identifiant du patient" />
+            <input v-model="criteria.ipp" class="input" />
           </label>
         </div>
         <div class="actions">
-          <span class="muted">Renseignez au moins un critère pour rechercher un patient.</span>
           <button type="submit" class="btn btn-primary" :disabled="!hasCriteria || loading">
             {{ loading ? 'Recherche…' : 'Rechercher' }}
           </button>
@@ -117,25 +105,10 @@ const countLabel = computed(() => {
       {{ error }}
     </div>
 
-    <div v-else-if="results === null" class="placeholder">
-      <AppIcon name="search" :size="20" class="muted" />
-      <p class="placeholder-title">Commencez par rechercher le patient</p>
-      <p class="muted">
-        Les correspondances s’afficheront ici après la recherche. Vous pourrez ensuite sélectionner
-        un patient ou créer son dossier.
-      </p>
-    </div>
-
-    <div v-else-if="results.length === 0" class="placeholder card">
+    <!-- results: null until the first search -->
+    <div v-else-if="results?.length === 0" class="placeholder card">
       <AppIcon name="search" :size="20" class="muted" />
       <p class="placeholder-title">Aucun patient trouvé</p>
-      <p class="muted">
-        Aucun dossier ne correspond aux informations saisies. Vérifiez les critères ou créez un
-        dossier{{ searchedName ? ` pour ${searchedName}` : '' }}.
-      </p>
-      <p class="muted">
-        Les informations de recherche seront préremplies. Vous pourrez ensuite créer son séjour.
-      </p>
       <button
         type="button"
         class="btn btn-primary"
@@ -145,7 +118,7 @@ const countLabel = computed(() => {
       </button>
     </div>
 
-    <template v-else>
+    <template v-else-if="results">
       <div class="results-header">
         <h2 class="card-title">Patients retrouvés</h2>
         <span class="muted">{{ countLabel }}</span>
@@ -187,12 +160,9 @@ const countLabel = computed(() => {
         </tbody>
       </table>
       <div class="actions">
-        <span class="muted">
-          <template v-if="selected">
-            Patient sélectionné : {{ patientName(selected) || 'Patient sous X' }}
-            {{ selected.ipp ? `· ${selected.ipp}` : '' }}
-          </template>
-          <template v-else>Sélectionnez un patient dans la liste.</template>
+        <span v-if="selected" class="muted">
+          Patient sélectionné : {{ patientName(selected) || 'Patient sous X' }}
+          {{ selected.ipp ? `· ${selected.ipp}` : '' }}
         </span>
         <div class="buttons">
           <button type="button" class="btn" @click="emit('create-patient', { ...criteria })">

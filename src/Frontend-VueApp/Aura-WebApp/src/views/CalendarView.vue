@@ -1,42 +1,40 @@
 <script setup>
-import { computed, onMounted, onUnmounted, ref } from 'vue'
+import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import AppIcon from '../components/AppIcon.vue'
-import { listHospitalizations } from '../api.js'
-import { STAY_STATUSES, STAY_TYPES, formatDateTime, labelOf, patientName } from '../format.js'
+import { listAppointments, listPatientHospitalizations } from '../api.js'
+import { isCurrentUser } from '../currentUser.js'
+import {
+  TIME_CONSTRAINTS,
+  dayKey,
+  formatDate,
+  formatTime,
+  labelOf,
+  patientName,
+  practitionerName,
+  stayEnd,
+} from '../format.js'
 
 const props = defineProps({
-  // sidebar "Du patient sélectionné": only show this patient's stays
+  // sidebar "Calendriers": the department's care / the user's own care
+  showService: { type: Boolean, default: true },
+  showMine: { type: Boolean, default: true },
+  // sidebar "Du patient sélectionné": only this patient's care, and their stays
   patientFilter: { type: Object, default: null },
   // current date, injectable for tests
   today: { type: Date, default: () => new Date() },
 })
-const emit = defineEmits(['new-admission'])
+const emit = defineEmits(['plan-care', 'edit-care'])
 
 const WEEKDAYS = ['Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam', 'Dim']
-const pad = (n) => String(n).padStart(2, '0')
-// local date as "YYYY-MM-DD", the same format as the start of the backend's datetimes
-const dayKey = (d) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`
 const firstOfMonth = (d) => new Date(d.getFullYear(), d.getMonth(), 1)
 
 const todayKey = dayKey(props.today)
 const month = ref(firstOfMonth(props.today))
-const hospitalizations = ref([])
+const appointments = ref([])
+const stays = ref([])
 const loading = ref(true)
 const error = ref('')
-const openedEvent = ref(null)
-
-async function load() {
-  loading.value = true
-  error.value = ''
-  try {
-    hospitalizations.value = await listHospitalizations()
-  } catch (e) {
-    error.value = e.message
-  } finally {
-    loading.value = false
-  }
-}
-onMounted(load)
+const opened = ref(null)
 
 const monthTitle = computed(() => {
   const title = new Intl.DateTimeFormat('fr-FR', { month: 'long', year: 'numeric' }).format(
@@ -48,40 +46,6 @@ const monthTitle = computed(() => {
 function shiftMonth(delta) {
   month.value = new Date(month.value.getFullYear(), month.value.getMonth() + delta, 1)
 }
-
-// one event per admission, expected discharge and actual discharge of each stay
-const EVENT_LABELS = { admission: 'Admission', expected: 'Sortie prévue', discharge: 'Sortie' }
-const events = computed(() => {
-  const list = []
-  for (const hospitalization of hospitalizations.value) {
-    const encounter = hospitalization.encounter
-    if (props.patientFilter && encounter.patient_id !== props.patientFilter.id) continue
-    const dates = {
-      admission: encounter.admission_date,
-      expected: encounter.expected_discharge_date,
-      discharge: encounter.actual_discharge_date,
-    }
-    for (const [kind, at] of Object.entries(dates)) {
-      if (!at) continue
-      list.push({
-        id: `${hospitalization.encounter_id}-${kind}`,
-        kind,
-        label: EVENT_LABELS[kind],
-        name: patientName(encounter.patient) || 'Patient sous X',
-        day: at.slice(0, 10),
-        time: at.slice(11, 16),
-        hospitalization,
-      })
-    }
-  }
-  return list.sort((a, b) => `${a.day}${a.time}`.localeCompare(`${b.day}${b.time}`))
-})
-
-const eventsByDay = computed(() => {
-  const byDay = {}
-  for (const event of events.value) (byDay[event.day] ??= []).push(event)
-  return byDay
-})
 
 // weeks shown for the month, Monday first, with the days of the months around it
 const weeks = computed(() => {
@@ -105,31 +69,121 @@ const weeks = computed(() => {
   return result
 })
 
-const monthAdmissions = computed(() => {
-  const prefix = dayKey(month.value).slice(0, 7)
-  return events.value.filter((e) => e.kind === 'admission' && e.day.startsWith(prefix)).length
+// care of every day on screen, and the selected patient's stays
+async function load() {
+  loading.value = true
+  error.value = ''
+  const days = weeks.value.flat()
+  try {
+    const [care, patientStays] = await Promise.all([
+      listAppointments({ start: days[0].key, end: days.at(-1).key }),
+      props.patientFilter ? listPatientHospitalizations(props.patientFilter.id) : [],
+    ])
+    appointments.value = care
+    stays.value = patientStays.map((h) => h.encounter)
+  } catch (e) {
+    error.value = e.message
+  } finally {
+    loading.value = false
+  }
+}
+onMounted(load)
+watch([month, () => props.patientFilter?.id], load)
+
+// ---- care events ----
+
+const performerLine = (a) => {
+  const [first, ...others] = a.performers
+  if (!first) return ''
+  return practitionerName(first) + (others.length ? ` +${others.length}` : '')
+}
+const timeLine = (a) =>
+  a.time_constraint === 'WEAK'
+    ? `${formatTime(a.scheduled_start)}–${formatTime(a.scheduled_end)}`
+    : formatTime(a.scheduled_start)
+
+// "patient" (patient view), "mine" (the user is in charge) or "service" (everyone else's)
+const events = computed(() =>
+  appointments.value
+    .map((a) => {
+      let kind
+      if (props.patientFilter) {
+        if (a.patient.id !== props.patientFilter.id) return null
+        kind = 'patient'
+      } else {
+        kind = a.performers.some(isCurrentUser) ? 'mine' : 'service'
+        if ((kind === 'mine' && !props.showMine) || (kind === 'service' && !props.showService))
+          return null
+      }
+      return {
+        id: a.id,
+        kind,
+        day: a.scheduled_start.slice(0, 10),
+        title: a.activity_definition.name,
+        subtitle: [timeLine(a), performerLine(a)].filter(Boolean).join(' · '),
+        appointment: a,
+      }
+    })
+    .filter(Boolean),
+)
+
+const eventsByDay = computed(() => {
+  const byDay = {}
+  for (const event of events.value) (byDay[event.day] ??= []).push(event)
+  return byDay
 })
 
+// ---- stays of the selected patient: a bar across the days of each week ----
+
+function stayLabel(stay) {
+  const start = formatDate(stay.admission_date.slice(0, 10))
+  const end = stayEnd(stay)
+  const period = end
+    ? `du ${start} au ${formatDate(end.slice(0, 10))}`
+    : `en cours depuis le ${start}`
+  return [`Séjour ${period}`, stay.location].filter(Boolean).join(' · ')
+}
+
+function bandsOf(week) {
+  return stays.value
+    .map((stay) => {
+      const start = stay.admission_date.slice(0, 10)
+      const end = stayEnd(stay)?.slice(0, 10) ?? '9999-12-31' // still in progress
+      const first = week.findIndex((d) => d.key >= start)
+      const last = week.findLastIndex((d) => d.key <= end)
+      if (first === -1 || last === -1 || first > last) return null
+      return { id: stay.id, first, last, label: stayLabel(stay) }
+    })
+    .filter(Boolean)
+}
+
+// ---- detail card ----
+
 function onKeydown(event) {
-  if (event.key === 'Escape') openedEvent.value = null
+  if (event.key === 'Escape') opened.value = null
 }
 onMounted(() => window.addEventListener('keydown', onKeydown))
 onUnmounted(() => window.removeEventListener('keydown', onKeydown))
 
-const opened = computed(() => {
-  if (!openedEvent.value) return null
-  const encounter = openedEvent.value.hospitalization.encounter
-  return { event: openedEvent.value, encounter, patient: encounter.patient }
-})
+function whenLong(a) {
+  const date = new Date(a.scheduled_start)
+  const weekday = new Intl.DateTimeFormat('fr-FR', { weekday: 'long' }).format(date)
+  const day = formatDate(a.scheduled_start.slice(0, 10))
+  const time =
+    a.time_constraint === 'WEAK'
+      ? `de ${formatTime(a.scheduled_start)} à ${formatTime(a.scheduled_end)}`
+      : `à ${formatTime(a.scheduled_start)}`
+  return `${weekday[0].toUpperCase()}${weekday.slice(1)} ${day} ${time}`
+}
 </script>
 
 <template>
   <header class="page-header">
     <div class="heading">
       <h2 class="service-name">Service de réanimation</h2>
-      <button type="button" class="btn btn-primary btn-header" @click="emit('new-admission')">
+      <button type="button" class="btn btn-primary btn-header" @click="emit('plan-care')">
         <AppIcon name="plus" :size="16" />
-        Nouvelle admission
+        Planifier un soin
       </button>
     </div>
     <div class="date-controls">
@@ -152,18 +206,23 @@ const opened = computed(() => {
           Aujourd’hui
         </button>
       </div>
-      <div class="legend">
-        <span v-if="patientFilter" class="filter">
-          Séjours de {{ patientName(patientFilter) || 'Patient sous X' }}
-        </span>
-        <span class="muted">
-          {{ monthAdmissions }} admission{{ monthAdmissions > 1 ? 's' : '' }} ce mois-ci
-        </span>
-        <span class="legend-item"><i class="swatch admission"></i>Admission</span>
-        <span class="legend-item"><i class="swatch expected"></i>Sortie prévue</span>
+      <div v-if="!patientFilter" class="legend">
+        <span class="legend-item"><i class="swatch mine"></i>Mes soins</span>
+        <span class="legend-item"><i class="swatch service"></i>Soins du service</span>
       </div>
     </div>
   </header>
+
+  <div v-if="patientFilter" class="patient-bar">
+    <span>
+      <strong>{{ patientName(patientFilter) || 'Patient sous X' }}</strong>
+      <span class="muted"> · {{ patientFilter.ipp || 'IPP non renseigné' }}</span>
+    </span>
+    <span class="legend">
+      <span class="legend-item"><i class="swatch patient"></i>Soins du patient</span>
+      <span class="legend-item"><i class="swatch stay"></i>Séjour du patient</span>
+    </span>
+  </div>
 
   <div v-if="error" class="notice notice-error error" role="alert">
     <AppIcon name="alert-circle" :size="16" />
@@ -175,7 +234,26 @@ const opened = computed(() => {
     <div class="weekdays">
       <div v-for="day in WEEKDAYS" :key="day" class="weekday">{{ day }}</div>
     </div>
-    <div v-for="week in weeks" :key="week[0].key" class="week">
+    <div
+      v-for="week in weeks"
+      :key="week[0].key"
+      class="week"
+      :class="{ 'has-band': bandsOf(week).length }"
+    >
+      <div
+        v-for="band in bandsOf(week)"
+        :key="band.id"
+        class="stay-band"
+        :data-first-day="band.first"
+        :data-days="band.last - band.first + 1"
+        :style="{
+          left: `calc(${band.first} * 100% / 7 + 6px)`,
+          width: `calc(${band.last - band.first + 1} * 100% / 7 - 12px)`,
+        }"
+        :title="band.label"
+      >
+        {{ band.label }}
+      </div>
       <div
         v-for="day in week"
         :key="day.key"
@@ -190,59 +268,55 @@ const opened = computed(() => {
           type="button"
           class="event"
           :class="event.kind"
-          @click="openedEvent = event"
+          @click="opened = event.appointment"
         >
-          <span class="event-title">{{ event.name }}</span>
-          <span class="event-time">{{ event.time }} · {{ event.label }}</span>
+          <span class="event-title">{{ event.title }}</span>
+          <span class="event-time">{{ event.subtitle }}</span>
         </button>
       </div>
     </div>
   </div>
 
-  <div v-if="opened" class="overlay" @click.self="openedEvent = null">
-    <section class="detail" role="dialog" aria-modal="true" :aria-label="opened.event.label">
-      <button type="button" class="icon-btn close" aria-label="Fermer" @click="openedEvent = null">
+  <div v-if="opened" class="overlay" @click.self="opened = null">
+    <section
+      class="detail"
+      :class="{ patient: patientFilter }"
+      role="dialog"
+      aria-modal="true"
+      :aria-label="opened.activity_definition.name"
+    >
+      <button type="button" class="icon-btn close" aria-label="Fermer" @click="opened = null">
         <AppIcon name="x" :size="18" />
       </button>
-      <h2 class="detail-title">{{ opened.event.label }}</h2>
-      <p class="detail-time">
-        {{ formatDateTime(`${opened.event.day}T${opened.event.time}`) }}
-      </p>
+      <h2 class="detail-title">{{ opened.activity_definition.name }}</h2>
+      <p class="detail-time">{{ whenLong(opened) }}</p>
       <p class="detail-patient">
         <span class="muted">Patient&nbsp;: </span>
-        <strong>{{ opened.event.name }}</strong>
+        <strong>{{ patientName(opened.patient) || 'Patient sous X' }}</strong>
         <span v-if="opened.patient.ipp" class="muted"> · {{ opened.patient.ipp }}</span>
       </p>
+      <p v-if="opened.encounter.location">{{ opened.encounter.location }}</p>
       <p v-if="opened.patient.allergies.length" class="allergy">
         Allergies : {{ opened.patient.allergies.map((a) => a.name).join(', ') }}
       </p>
       <hr />
+      <p>
+        <span class="muted">Soignant en charge&nbsp;: </span>
+        <strong>{{ opened.performers.map(practitionerName).join(', ') || 'Non renseigné' }}</strong>
+      </p>
+      <p class="muted">
+        Prescrit par&nbsp;: {{ practitionerName(opened.validated_by) || 'Non renseigné' }}
+      </p>
+      <p class="muted">Contrainte&nbsp;: {{ labelOf(TIME_CONSTRAINTS, opened.time_constraint) }}</p>
       <dl>
-        <div>
-          <dt>Séjour n°</dt>
-          <dd>{{ opened.encounter.stay_number }}</dd>
-        </div>
-        <div>
-          <dt>Type</dt>
-          <dd>{{ labelOf(STAY_TYPES, opened.encounter.encounter_type_code) }}</dd>
-        </div>
-        <div>
-          <dt>Statut</dt>
-          <dd>{{ labelOf(STAY_STATUSES, opened.encounter.status) }}</dd>
-        </div>
-        <div>
-          <dt>Admission</dt>
-          <dd>{{ formatDateTime(opened.encounter.admission_date) }}</dd>
-        </div>
-        <div v-if="opened.encounter.expected_discharge_date">
-          <dt>Sortie prévue</dt>
-          <dd>{{ formatDateTime(opened.encounter.expected_discharge_date) }}</dd>
-        </div>
-        <div>
-          <dt>Motif</dt>
-          <dd>{{ opened.encounter.reason || '—' }}</dd>
-        </div>
+        <dt>Objet</dt>
+        <dd>{{ opened.activity_definition.name }}</dd>
+        <dt>Notes</dt>
+        <dd>{{ opened.note || 'Aucune note.' }}</dd>
       </dl>
+      <button type="button" class="btn btn-primary" @click="emit('edit-care', opened)">
+        Modifier
+      </button>
     </section>
   </div>
 </template>
@@ -306,7 +380,6 @@ const opened = computed(() => {
 
 .btn-today {
   height: 36px;
-  color: var(--color-text);
 }
 
 .legend {
@@ -314,14 +387,6 @@ const opened = computed(() => {
   flex-wrap: wrap;
   align-items: center;
   gap: 16px;
-}
-
-.filter {
-  padding: 4px 10px;
-  border-radius: 100px;
-  background: var(--color-primary-soft);
-  color: var(--color-primary);
-  font-weight: 500;
 }
 
 .legend-item {
@@ -334,7 +399,19 @@ const opened = computed(() => {
 .swatch {
   width: 12px;
   height: 12px;
+  border: 1px solid;
+  border-left-width: 3px;
   border-radius: 3px;
+}
+
+.patient-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px 32px;
+  border-top: 1px solid var(--color-border);
 }
 
 .error {
@@ -353,6 +430,10 @@ const opened = computed(() => {
 .week {
   display: grid;
   grid-template-columns: repeat(7, minmax(0, 1fr));
+}
+
+.week {
+  position: relative;
 }
 
 .weekdays {
@@ -377,6 +458,11 @@ const opened = computed(() => {
   border-right: 1px solid var(--color-border);
   border-bottom: 1px solid var(--color-border);
   background: #fff;
+}
+
+/* room for the stay bar under the day numbers */
+.has-band .day-number {
+  margin-bottom: 30px;
 }
 
 .day:last-child {
@@ -407,6 +493,20 @@ const opened = computed(() => {
   font-weight: 600;
 }
 
+.stay-band {
+  position: absolute;
+  top: 44px;
+  z-index: 1;
+  overflow: hidden;
+  padding: 4px 10px;
+  border: 1px solid var(--color-border-strong);
+  border-radius: 4px;
+  background: var(--color-surface-muted);
+  font-size: 12px;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
 .event {
   display: flex;
   flex-direction: column;
@@ -421,7 +521,7 @@ const opened = computed(() => {
   cursor: pointer;
 }
 
-/* the patient's name wraps on two lines at most, so narrow columns still show it */
+/* the care type wraps on two lines at most, so narrow columns still show it */
 .event-title {
   display: -webkit-box;
   overflow: hidden;
@@ -439,29 +539,36 @@ const opened = computed(() => {
   overflow-wrap: break-word;
 }
 
-.event.admission,
-.swatch.admission {
+.event.mine,
+.swatch.mine {
   border-color: var(--color-primary);
   background: var(--color-primary-soft);
   color: var(--color-primary);
 }
 
-.event.expected,
-.event.discharge,
-.swatch.expected {
+.event.service,
+.swatch.service {
   border-color: #a9acb4;
   background: var(--color-avatar);
   color: var(--color-primary);
 }
 
-.event.expected .event-time,
-.event.discharge .event-time {
+.event.service .event-time {
   color: var(--color-text-muted);
 }
 
-.swatch {
-  border: 1px solid;
-  border-left-width: 3px;
+.event.patient,
+.swatch.patient {
+  border-color: var(--color-patient);
+  background: var(--color-patient-soft);
+  color: var(--color-patient);
+}
+
+.swatch.stay {
+  width: 22px;
+  border-width: 1px;
+  border-color: var(--color-border-strong);
+  background: var(--color-surface-muted);
 }
 
 .event:hover {
@@ -480,13 +587,19 @@ const opened = computed(() => {
 
 .detail {
   position: relative;
-  width: 420px;
+  width: 440px;
   max-width: 100%;
+  max-height: calc(100vh - 32px);
+  overflow: auto;
   padding: 24px;
   border-left: 4px solid var(--color-primary);
   border-radius: var(--radius-card);
   background: var(--color-surface-muted);
   box-shadow: 0 10px 30px rgb(0 0 0 / 20%);
+}
+
+.detail.patient {
+  border-left-color: var(--color-patient);
 }
 
 .close {
@@ -496,18 +609,21 @@ const opened = computed(() => {
 }
 
 .detail p {
-  margin: 0 0 8px;
+  margin: 0 0 6px;
 }
 
 .detail-title {
-  margin: 0 0 8px;
+  margin: 0 0 6px;
   color: var(--color-primary);
   font-size: 22px;
   font-weight: 600;
 }
 
+.detail.patient .detail-title {
+  color: var(--color-patient);
+}
+
 .detail-time {
-  color: var(--color-text-muted);
   font-size: 15px;
 }
 
@@ -516,30 +632,22 @@ const opened = computed(() => {
 }
 
 hr {
-  margin: 16px 0;
+  margin: 14px 0;
   border: none;
   border-top: 1px solid var(--color-border-strong);
 }
 
 dl {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  margin: 0;
-}
-
-dl div {
-  display: flex;
-  gap: 8px;
+  margin: 14px 0 18px;
 }
 
 dt {
-  min-width: 110px;
+  margin-top: 10px;
   color: var(--color-text-muted);
 }
 
 dd {
-  margin: 0;
-  font-weight: 500;
+  margin: 4px 0 0;
+  white-space: pre-line;
 }
 </style>

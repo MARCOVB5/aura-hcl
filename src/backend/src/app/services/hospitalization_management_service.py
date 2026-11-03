@@ -1,12 +1,16 @@
+from datetime import datetime
+
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
+from app.dao.appointment_dao import AppointmentDAO
 from app.dao.encounter_dao import EncounterDAO
 from app.dao.hospitalization_dao import HospitalizationDAO
 from app.dao.patient_dao import PatientDAO
-from app.errors import Conflict, NotFound
+from app.errors import AppError, Conflict, NotFound
 from app.models.encounter import Encounter
 from app.models.hospitalization import Hospitalization
+from app.schemas.Encounter import EncounterUpdate
 from app.schemas.Hospitalization import HospitalizationCreate
 
 
@@ -18,11 +22,13 @@ class HospitalizationManagementService:
     patients: PatientDAO,
     encounters: EncounterDAO,
     hospitalizations: HospitalizationDAO,
+    appointments: AppointmentDAO,
   ):
     self.session = session
     self.patients = patients
     self.encounters = encounters
     self.hospitalizations = hospitalizations
+    self.appointments = appointments
 
   def create_hospitalization(self, data: HospitalizationCreate) -> Hospitalization:
     patient = self.patients.get(data.encounter.patient_id)
@@ -62,3 +68,42 @@ class HospitalizationManagementService:
     if self.patients.get(patient_id) is None:
       raise NotFound("Patient not found")
     return self.hospitalizations.get_by_patient(patient_id)
+
+  def get_current_hospitalization(self, patient_id: int) -> Hospitalization:
+    """The stay in progress, to which new care appointments are attached"""
+    if self.patients.get(patient_id) is None:
+      raise NotFound("Patient not found")
+    encounter = self.encounters.get_current(patient_id, datetime.now())
+    if encounter is None:
+      raise NotFound("No current stay")
+    return self.get_hospitalization(encounter.id)
+
+  def update_hospitalization(self, encounter_id: int, data: EncounterUpdate) -> Hospitalization:
+    hospitalization = self.get_hospitalization(encounter_id)
+    encounter = hospitalization.encounter
+    changes = data.model_dump(exclude_unset=True)
+
+    # these are required columns: null would mean "no change", so it is refused
+    for required in ("stay_number", "status", "encounter_type_code", "admission_date"):
+      if required in changes and changes[required] is None:
+        raise AppError(f"{required} cannot be empty")
+    for field, value in changes.items():
+      setattr(encounter, field, value)
+    for end in (encounter.expected_discharge_date, encounter.actual_discharge_date):
+      if end is not None and end < encounter.admission_date:
+        raise AppError("Discharge date before admission date")
+
+    try:
+      self.session.commit()
+    except IntegrityError:
+      self.session.rollback()
+      raise Conflict("Stay number already registered")
+    return self.get_hospitalization(encounter_id)
+
+  def delete_hospitalization(self, encounter_id: int) -> None:
+    hospitalization = self.get_hospitalization(encounter_id)
+    # deleting the stay would leave its care appointments without a stay
+    if self.appointments.exists_for_encounter(encounter_id):
+      raise Conflict("Stay has care appointments")
+    self.encounters.delete(hospitalization.encounter)
+    self.session.commit()

@@ -3,7 +3,7 @@ from fastapi import APIRouter, Query, status
 from app.deps import HospitalizationManagementServiceDep, PatientManagementServiceDep
 from app.schemas.Allergy import AllergiesCreate, AllergyOut
 from app.schemas.Hospitalization import HospitalizationOut
-from app.schemas.Patient import PatientCreate, PatientOut
+from app.schemas.Patient import PatientCreate, PatientOut, PatientUpdate
 
 router = APIRouter(prefix="/api/patients", tags =["patients"])
 
@@ -31,9 +31,34 @@ def add_allergies(
   return service.add_allergies(patient_id, data.allergies)
 
 
+@router.get("/{patient_id}", response_model=PatientOut)
+def get_patient(
+  patient_id : int,
+  service : PatientManagementServiceDep,
+):
+  return service.get_patient(patient_id)
+
+# replaces the whole record: send every field, allergies missing from the list are removed
+@router.put("/{patient_id}", response_model=PatientOut)
+def update_patient(
+  patient_id : int,
+  data : PatientUpdate,
+  service : PatientManagementServiceDep,
+):
+  return service.update_patient(patient_id, data)
+
+
 @router.get("/{patient_id}/hospitalizations", response_model=list[HospitalizationOut])
 def get_hospitalizations_by_patient(
   patient_id: int,
   service: HospitalizationManagementServiceDep,
 ):
   return service.get_hospitalization_by_patient(patient_id)
+
+# the stay in progress (404 "No current stay" if there is none): care is attached to it
+@router.get("/{patient_id}/current-hospitalization", response_model=HospitalizationOut)
+def get_current_hospitalization(
+  patient_id: int,
+  service: HospitalizationManagementServiceDep,
+):
+  return service.get_current_hospitalization(patient_id)

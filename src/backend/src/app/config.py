@@ -1,4 +1,5 @@
 from pathlib import Path
+from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 # src/backend/.env, should contain the env-vars in the sample .env.example
@@ -6,6 +7,8 @@ ENV_FILE = Path(__file__).resolve().parents[2] / ".env"
 
 class Settings(BaseSettings):
   model_config = SettingsConfigDict(env_file = ENV_FILE)
+
+  jwt_secret: str = Field(min_length=32)
 
   database_url : str
   # origins allowed to call the API from a browser (the Vite dev server by default).

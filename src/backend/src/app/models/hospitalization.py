@@ -31,5 +31,5 @@ class Hospitalization(Base):
     server_default="IN_PROGRESS",
   )
   assessment_completed_at: Mapped[datetime | None] = mapped_column(DateTime)
-
+  
   encounter: Mapped[Encounter] = relationship(back_populates="hospitalization")
