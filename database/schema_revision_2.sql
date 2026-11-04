@@ -67,50 +67,16 @@ CREATE TABLE person_telecom (
 ) ENGINE=InnoDB;
 
 -- ------------------------------------------------------------
--- Staff & Departments
+-- Staff
 -- ------------------------------------------------------------
-CREATE TABLE organization (
-  id         BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
-  name       VARCHAR(255) NOT NULL,
-  active     BOOLEAN NOT NULL DEFAULT TRUE,
-  part_of_id BIGINT UNSIGNED NULL,
-  CONSTRAINT fk_org_part_of FOREIGN KEY (part_of_id) REFERENCES organization(id)
-) ENGINE=InnoDB;
-
 CREATE TABLE practitioner (
-  id        BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
-  person_id BIGINT UNSIGNED NOT NULL,
-  active    BOOLEAN NOT NULL DEFAULT TRUE,
+  id         BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  person_id  BIGINT UNSIGNED NOT NULL,
+  active     BOOLEAN NOT NULL DEFAULT TRUE,
+  profession VARCHAR(64) NULL,              -- free text (e.g. "Médecin", "Infirmier")
+  specialty  VARCHAR(128) NULL,
   CONSTRAINT fk_practitioner_person FOREIGN KEY (person_id) REFERENCES person(id),
   UNIQUE KEY uq_practitioner_person (person_id)
-) ENGINE=InnoDB;
-
-CREATE TABLE practitioner_identifier (
-  id              BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
-  practitioner_id BIGINT UNSIGNED NOT NULL,
-  system          VARCHAR(255) NULL,
-  value           VARCHAR(128) NOT NULL,
-  -- NULL system treated as '' so (NULL, 'X') cannot be inserted twice
-  system_key      VARCHAR(255) AS (COALESCE(system, '')) STORED,
-  CONSTRAINT fk_prac_ident FOREIGN KEY (practitioner_id)
-    REFERENCES practitioner(id) ON DELETE CASCADE,
-  UNIQUE KEY uq_prac_ident (system_key, value)
-) ENGINE=InnoDB;
-
-CREATE TABLE practitioner_role (
-  id              BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
-  practitioner_id BIGINT UNSIGNED NOT NULL,
-  organization_id BIGINT UNSIGNED NOT NULL,
-  active          BOOLEAN NOT NULL DEFAULT TRUE,
-  period_start    DATETIME NULL,
-  period_end      DATETIME NULL,
-  specialty       VARCHAR(128) NULL,
-  practitioner_profession ENUM('PHYSICIAN','NURSE','CARE_ASSISTANT',
-                               'PHYSIOTHERAPIST','OTHER') NOT NULL,
-  CONSTRAINT fk_role_practitioner FOREIGN KEY (practitioner_id) REFERENCES practitioner(id),
-  CONSTRAINT fk_role_organization FOREIGN KEY (organization_id) REFERENCES organization(id),
-  CONSTRAINT ck_role_period CHECK (period_end IS NULL OR period_start IS NULL
-                                   OR period_end >= period_start)
 ) ENGINE=InnoDB;
 
 -- ------------------------------------------------------------
@@ -145,15 +111,6 @@ CREATE TABLE patient (
                                       OR TRIM(COALESCE(description, '')) <> '')
 ) ENGINE=InnoDB;
 
-CREATE TABLE patient_general_practitioner (
-  patient_id      BIGINT UNSIGNED NOT NULL,
-  practitioner_id BIGINT UNSIGNED NOT NULL,
-  PRIMARY KEY (patient_id, practitioner_id),
-  CONSTRAINT fk_pgp_patient FOREIGN KEY (patient_id)
-    REFERENCES patient(id) ON DELETE CASCADE,
-  CONSTRAINT fk_pgp_practitioner FOREIGN KEY (practitioner_id) REFERENCES practitioner(id)
-) ENGINE=InnoDB;
-
 -- Medical / surgical - history and allergies, all represented as strings.
 -- No ALLERGY rows = allergies not documented (ATTENTION!!!!!!!!!!!!!!!!!!!(how many more !?) : IT DOESNT MEAN "no allergy").
 CREATE TABLE pathology (
@@ -180,12 +137,10 @@ CREATE TABLE encounter (
   expected_discharge_date DATETIME NULL,
   actual_discharge_date   DATETIME NULL,
   reason                  VARCHAR(255) NULL,
-  service_provider_id     BIGINT UNSIGNED NULL,
   UNIQUE KEY uq_encounter_stay_number (stay_number),
   UNIQUE KEY uq_encounter_patient (id, patient_id),
   CONSTRAINT fk_enc_patient  FOREIGN KEY (patient_id) REFERENCES patient(id),
   CONSTRAINT fk_enc_type     FOREIGN KEY (encounter_type_code) REFERENCES encounter_type(code),
-  CONSTRAINT fk_enc_provider FOREIGN KEY (service_provider_id) REFERENCES organization(id),
   CONSTRAINT ck_enc_stay_number CHECK (TRIM(stay_number) <> ''),
   CONSTRAINT ck_enc_expected_discharge CHECK (expected_discharge_date IS NULL
                                               OR expected_discharge_date >= admission_date),
@@ -217,6 +172,7 @@ CREATE TABLE encounter_participant (
                                  OR period_end >= period_start)
 ) ENGINE=InnoDB;
 
+-- location history of a stay: one row per place, the current one has no period_end
 CREATE TABLE encounter_location (
   id           BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
   encounter_id BIGINT UNSIGNED NOT NULL,
@@ -305,7 +261,7 @@ CREATE TABLE care_plan (
 ) ENGINE=InnoDB;
 
 CREATE TABLE request (
-  id           UUID NOT NULL DEFAULT UUID() PRIMARY KEY,
+  id           BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
   request_type ENUM('SERVICE','MEDICATION') NOT NULL,
   patient_id   BIGINT UNSIGNED NOT NULL,
   encounter_id BIGINT UNSIGNED NOT NULL,     -- every request belongs to a stay (séjour)
@@ -321,8 +277,11 @@ CREATE TABLE request (
   timing_frequency    INT UNSIGNED NULL,
   timing_period       DECIMAL(10,3) NULL,
   timing_period_unit  ENUM('s','min','h','d','wk','mo','a') NULL,
-  UNIQUE KEY uq_req_patient (id, patient_id),
-  UNIQUE KEY uq_req_type    (id, request_type),
+  validator_id        BIGINT UNSIGNED NULL,
+  validated_at        DATETIME NULL,
+  UNIQUE KEY uq_req_patient   (id, patient_id),
+  UNIQUE KEY uq_req_type      (id, request_type),
+  UNIQUE KEY uq_req_encounter (id, encounter_id),
   CONSTRAINT fk_req_patient   FOREIGN KEY (patient_id) REFERENCES patient(id),
   CONSTRAINT fk_req_encounter FOREIGN KEY (encounter_id, patient_id)
     REFERENCES encounter(id, patient_id),
@@ -334,26 +293,29 @@ CREATE TABLE request (
   CONSTRAINT ck_req_recurrence CHECK (timing_frequency IS NULL OR
       (timing_frequency > 0 AND timing_bounds_start IS NOT NULL
        AND timing_period > 0 AND timing_period_unit IS NOT NULL)),
+  CONSTRAINT fk_req_validator FOREIGN KEY (validator_id) REFERENCES app_user(id),
   CONSTRAINT ck_req_bounds CHECK (timing_bounds_end IS NULL OR timing_bounds_start IS NULL
-                                  OR timing_bounds_end >= timing_bounds_start)
+                                  OR timing_bounds_end >= timing_bounds_start),
+  CONSTRAINT ck_req_validation CHECK ((validator_id IS NULL) = (validated_at IS NULL)
+                                      AND (care_plan_id IS NULL OR validator_id IS NULL))
 ) ENGINE=InnoDB;
 
 CREATE TABLE request_timing_event (
-  request_id UUID NOT NULL,
+  request_id BIGINT UNSIGNED NOT NULL,
   event_at   DATETIME NOT NULL,
   PRIMARY KEY (request_id, event_at),
   CONSTRAINT fk_rte_request FOREIGN KEY (request_id) REFERENCES request(id) ON DELETE CASCADE
 ) ENGINE=InnoDB;
 
 CREATE TABLE request_timing_time_of_day (
-  request_id  UUID NOT NULL,
+  request_id  BIGINT UNSIGNED NOT NULL,
   time_of_day TIME NOT NULL,
   PRIMARY KEY (request_id, time_of_day),
   CONSTRAINT fk_rtt_request FOREIGN KEY (request_id) REFERENCES request(id) ON DELETE CASCADE
 ) ENGINE=InnoDB;
 
 CREATE TABLE service_request (
-  request_id   UUID NOT NULL PRIMARY KEY,
+  request_id   BIGINT UNSIGNED NOT NULL PRIMARY KEY,
   request_type ENUM('SERVICE','MEDICATION') NOT NULL DEFAULT 'SERVICE'
                CHECK (request_type = 'SERVICE'),
   care_type    VARCHAR(128) NOT NULL,
@@ -364,7 +326,7 @@ CREATE TABLE service_request (
 ) ENGINE=InnoDB;
 
 CREATE TABLE medication_request (
-  request_id               UUID NOT NULL PRIMARY KEY,
+  request_id               BIGINT UNSIGNED NOT NULL PRIMARY KEY,
   request_type             ENUM('SERVICE','MEDICATION') NOT NULL DEFAULT 'MEDICATION'
                            CHECK (request_type = 'MEDICATION'),
   medication_definition_id BIGINT UNSIGNED NOT NULL,
@@ -383,27 +345,42 @@ CREATE TABLE medication_request (
   CONSTRAINT ck_mr_dose CHECK ((dose_value IS NULL) = (dose_unit IS NULL))
 ) ENGINE=InnoDB;
 
+-- an appointment is always created from a request (ServiceRequest / MedicationRequest)
 CREATE TABLE appointment (
-  id                       UUID NOT NULL DEFAULT UUID() PRIMARY KEY,
-  patient_id               BIGINT UNSIGNED NOT NULL,
-  encounter_id             BIGINT UNSIGNED NULL,
-  request_id               UUID NULL,
-  service_type             VARCHAR(128) NULL,
-  assigned_practitioner_id BIGINT UNSIGNED NULL,
-  scheduled_at             DATETIME NOT NULL,
-  created                  DATETIME NULL DEFAULT CURRENT_TIMESTAMP,
-  status                   ENUM('PLANNED','CANCELLED','DONE') NOT NULL DEFAULT 'PLANNED',
-  parameters               TEXT NULL,
+  id              BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  patient_id      BIGINT UNSIGNED NOT NULL,
+  encounter_id    BIGINT UNSIGNED NOT NULL,
+  request_id      BIGINT UNSIGNED NOT NULL,
+  service_type    VARCHAR(128) NULL,
+  time_constraint ENUM('WEAK','STRONG') NOT NULL,
+  scheduled_start DATETIME NOT NULL,
+  scheduled_end   DATETIME NULL,
+  created         DATETIME NULL DEFAULT CURRENT_TIMESTAMP,
+  status          ENUM('PLANNED','CANCELLED','DONE') NOT NULL DEFAULT 'PLANNED',
+  parameters      TEXT NULL,
   UNIQUE KEY uq_appt_patient (id, patient_id),
-  KEY ix_appt_agenda (patient_id, scheduled_at),
+  KEY ix_appt_agenda (patient_id, scheduled_start),
   CONSTRAINT fk_appt_patient   FOREIGN KEY (patient_id) REFERENCES patient(id),
   CONSTRAINT fk_appt_encounter FOREIGN KEY (encounter_id, patient_id)
     REFERENCES encounter(id, patient_id),
   CONSTRAINT fk_appt_request   FOREIGN KEY (request_id, patient_id)
     REFERENCES request(id, patient_id),
-  CONSTRAINT fk_appt_practitioner FOREIGN KEY (assigned_practitioner_id)
-    REFERENCES practitioner(id),
-  CONSTRAINT ck_appt_service_type CHECK (service_type IS NULL OR TRIM(service_type) <> '')
+  CONSTRAINT fk_appt_req_encounter FOREIGN KEY (request_id, encounter_id)
+    REFERENCES request(id, encounter_id),
+  CONSTRAINT ck_appt_service_type CHECK (service_type IS NULL OR TRIM(service_type) <> ''),
+  CONSTRAINT ck_appt_time CHECK (
+    (time_constraint = 'STRONG' AND scheduled_end IS NULL)
+    OR (time_constraint = 'WEAK' AND scheduled_end IS NOT NULL
+        AND scheduled_end > scheduled_start))
+) ENGINE=InnoDB;
+
+CREATE TABLE appointment_assigned_practitioner (
+  appointment_id  BIGINT UNSIGNED NOT NULL,
+  practitioner_id BIGINT UNSIGNED NOT NULL,
+  PRIMARY KEY (appointment_id, practitioner_id),
+  CONSTRAINT fk_aap_appointment FOREIGN KEY (appointment_id)
+    REFERENCES appointment(id) ON DELETE CASCADE,
+  CONSTRAINT fk_aap_practitioner FOREIGN KEY (practitioner_id) REFERENCES practitioner(id)
 ) ENGINE=InnoDB;
 
 -- care_type: free text, filled automatically from the appointment / ServiceRequest.
@@ -413,9 +390,9 @@ CREATE TABLE appointment (
 CREATE TABLE clinical_procedure (
   id                     BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
   patient_id             BIGINT UNSIGNED NOT NULL,
-  encounter_id           BIGINT UNSIGNED NULL,
-  request_id             UUID NULL,
-  appointment_id         UUID NULL,
+  encounter_id           BIGINT UNSIGNED NOT NULL,
+  request_id             BIGINT UNSIGNED NOT NULL,
+  appointment_id         BIGINT UNSIGNED NULL,
   care_type              VARCHAR(128) NULL,
   status                 ENUM('preparation','in-progress','not-done','on-hold',
                               'stopped','completed','entered-in-error','unknown') NOT NULL,
@@ -428,6 +405,8 @@ CREATE TABLE clinical_procedure (
     REFERENCES encounter(id, patient_id),
   CONSTRAINT fk_proc_request   FOREIGN KEY (request_id, patient_id)
     REFERENCES request(id, patient_id),
+  CONSTRAINT fk_proc_req_encounter FOREIGN KEY (request_id, encounter_id)
+    REFERENCES request(id, encounter_id),
   CONSTRAINT fk_proc_appt      FOREIGN KEY (appointment_id, patient_id)
     REFERENCES appointment(id, patient_id),
   CONSTRAINT ck_proc_care_type CHECK (care_type IS NULL OR TRIM(care_type) <> ''),
@@ -489,13 +468,13 @@ CREATE TRIGGER trg_el_bu BEFORE UPDATE ON encounter_location FOR EACH ROW
   CALL chk_encounter_location(NEW.id, NEW.encounter_id, NEW.period_start, NEW.period_end)//
 
 -- ---------- C18: appointment service type = ServiceRequest care type ----------
-CREATE FUNCTION fn_service_care_type(p_req UUID) RETURNS VARCHAR(128)
+CREATE FUNCTION fn_service_care_type(p_req BIGINT UNSIGNED) RETURNS VARCHAR(128)
   READS SQL DATA
 BEGIN
   RETURN (SELECT care_type FROM service_request WHERE request_id = p_req);
 END//
 
-CREATE PROCEDURE resolve_appt_service_type(IN p_req UUID, IN p_type VARCHAR(128),
+CREATE PROCEDURE resolve_appt_service_type(IN p_req BIGINT UNSIGNED, IN p_type VARCHAR(128),
                                            OUT p_out VARCHAR(128))
 BEGIN
   DECLARE v_type VARCHAR(128) DEFAULT fn_service_care_type(p_req);
@@ -518,11 +497,11 @@ BEGIN
 END//
 
 -- ---------- C21 + Procedure care type + performer [1..*] ----------
-CREATE PROCEDURE resolve_proc(IN p_id BIGINT UNSIGNED, IN p_appt UUID, IN p_req UUID,
+CREATE PROCEDURE resolve_proc(IN p_id BIGINT UNSIGNED, IN p_appt BIGINT UNSIGNED, IN p_req BIGINT UNSIGNED,
                               IN p_type VARCHAR(128), IN p_status VARCHAR(32),
                               OUT p_out VARCHAR(128))
 BEGIN
-  DECLARE v_appt_req  UUID;
+  DECLARE v_appt_req  BIGINT UNSIGNED;
   DECLARE v_appt_type VARCHAR(128);
   DECLARE v_req_type  VARCHAR(128) DEFAULT fn_service_care_type(p_req);
 
@@ -590,7 +569,7 @@ BEGIN
     SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'C11: validated care plan needs activities';
   END IF;
 END//
-CREATE PROCEDURE chk_cp_keeps_activity(IN p_cp BIGINT UNSIGNED, IN p_req UUID)
+CREATE PROCEDURE chk_cp_keeps_activity(IN p_cp BIGINT UNSIGNED, IN p_req BIGINT UNSIGNED)
 BEGIN
   IF p_cp IS NOT NULL
      AND (SELECT validation_status FROM care_plan WHERE id = p_cp) = 'VALIDATED'
@@ -609,7 +588,7 @@ BEGIN
 END//
 
 -- ---------- weightUsed: a valid prior weight of the same patient ----------
-CREATE PROCEDURE chk_mr_weight(IN p_req UUID, IN p_vs BIGINT UNSIGNED)
+CREATE PROCEDURE chk_mr_weight(IN p_req BIGINT UNSIGNED, IN p_vs BIGINT UNSIGNED)
 BEGIN
   IF p_vs IS NOT NULL AND NOT EXISTS (
        SELECT 1 FROM vital_signs v JOIN request r ON r.id = p_req
@@ -645,10 +624,10 @@ BEGIN
   SELECT a.*
     FROM appointment a
    WHERE a.patient_id = p_patient
-     AND a.scheduled_at >= p_day
-     AND a.scheduled_at <  p_day + INTERVAL 1 DAY
+     AND a.scheduled_start >= p_day
+     AND a.scheduled_start <  p_day + INTERVAL 1 DAY
      AND a.status <> 'CANCELLED'
-   ORDER BY a.scheduled_at;
+   ORDER BY a.scheduled_start;
 END//
 
 DELIMITER ;
