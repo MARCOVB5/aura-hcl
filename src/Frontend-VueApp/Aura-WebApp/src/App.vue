@@ -1,22 +1,27 @@
 <script setup>
-import { computed, ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
+import AppIcon from './components/AppIcon.vue'
 import AppSidebar from './components/AppSidebar.vue'
 import AdmissionSearchView from './views/AdmissionSearchView.vue'
 import CalendarView from './views/CalendarView.vue'
 import CareCreatedView from './views/CareCreatedView.vue'
 import CareFormView from './views/CareFormView.vue'
+import LoginView from './views/LoginView.vue'
 import PatientCreatedView from './views/PatientCreatedView.vue'
 import PatientFormView from './views/PatientFormView.vue'
 import PatientRecordView from './views/PatientRecordView.vue'
 import PatientsView from './views/PatientsView.vue'
 import StayCreatedView from './views/StayCreatedView.vue'
 import StayFormView from './views/StayFormView.vue'
+import { getCurrentUser, listPatientHospitalizations } from './api.js'
 import { patientName } from './format.js'
+import { endSession, session, startSession } from './session.js'
 
 // The page shown, with what it needs. Pages by section of the sidebar:
-//   Patients:   patients, patient-form, patient-created, patient-record, patient-edit
+//   Patients:   patients, patient-form, patient-created, patient-record, patient-edit, stay-edit
 //   Admission:  admission, admission-patient-form, stay-form, stay-created
 //   Calendrier: calendar, care-form, care-created
+// The stay and care forms also open from the patient pages: they then stay in that section.
 const page = ref({ name: 'patients' })
 const go = (name, params = {}) => (page.value = { name, ...params })
 
@@ -24,11 +29,49 @@ const go = (name, params = {}) => (page.value = { name, ...params })
 const selectedPatient = ref(null)
 const calendar = ref({ service: true, mine: true, onlySelectedPatient: false })
 const admissionCriteria = ref({})
+// counts the care saved, for the sidebar to load them again
+const savedCare = ref(0)
+
+// ---- login ----
+// Without a logged-in user, only the login page is shown. When the token expires, the
+// login page replaces the app and the user comes back to the same page afterwards.
+
+// a token saved by a previous visit: check it, and get the user it belongs to
+const restoring = ref(false)
+const restoreError = ref('')
+async function restoreSession() {
+  restoring.value = true
+  restoreError.value = ''
+  try {
+    startSession(session.token, await getCurrentUser())
+  } catch (e) {
+    // a 401 has already ended the session (see api.js): the login page shows
+    if (e.status !== 401) restoreError.value = e.message
+  } finally {
+    restoring.value = false
+  }
+}
+onMounted(() => {
+  if (session.token && !session.user) restoreSession()
+})
+
+function logout() {
+  endSession()
+  // the next user starts from scratch
+  selectedPatient.value = null
+  calendar.value = { service: true, mine: true, onlySelectedPatient: false }
+  admissionCriteria.value = {}
+  go('patients')
+}
+
+// care opened from the patient list or record stays in the Patients section
+const careSection = (origin) => (['list', 'record'].includes(origin) ? 'patients' : 'calendar')
 
 const section = computed(() => {
-  const name = page.value.name
-  if (['calendar', 'care-form', 'care-created'].includes(name)) return 'calendar'
-  if (name === 'stay-form') return page.value.origin === 'care' ? 'calendar' : page.value.section
+  const { name, origin, careOrigin } = page.value
+  if (['care-form', 'care-created'].includes(name)) return careSection(origin)
+  if (name === 'calendar') return 'calendar'
+  if (name === 'stay-form') return origin === 'care' ? careSection(careOrigin) : page.value.section
   if (['admission', 'admission-patient-form', 'stay-created'].includes(name)) return 'admission'
   return 'patients'
 })
@@ -43,8 +86,14 @@ function navigate(target) {
 
 // ---- patients ----
 
-const openRecord = (patient, { editStays = false } = {}) =>
-  go('patient-record', { patientId: patient.id, editStays })
+const openRecord = (patient, { focusStays = false } = {}) =>
+  go('patient-record', { patientId: patient.id, focusStays })
+
+// the sidebar shows the selected patient (allergies…): it gets the saved version
+function onPatientSaved(patient) {
+  if (selectedPatient.value?.id === patient.id) selectedPatient.value = patient
+  openRecord(patient)
+}
 
 // the calendar filtered on one patient ("Voir le calendrier", "Retour au calendrier")
 function openPatientCalendar(patient) {
@@ -57,29 +106,46 @@ function openPatientCalendar(patient) {
 
 // origin: where the stay form was opened from, to come back there
 //   'admission' (search), 'list' (patient list), 'record' (patient record), 'care' (care form)
-function openStayForm(patient, { origin = 'admission', careDraft = null } = {}) {
+//   careOrigin: for 'care', where the care form itself was opened from
+function openStayForm(patient, { origin = 'admission', careDraft = null, careOrigin } = {}) {
   const sections = {
     admission: 'admission',
     list: 'patients',
     record: 'patients',
     care: 'calendar',
   }
-  go('stay-form', { patient, origin, careDraft, section: sections[origin] })
+  go('stay-form', { patient, origin, careDraft, careOrigin, section: sections[origin] })
 }
 
 function leaveStayForm() {
-  const { origin, patient, careDraft } = page.value
+  const { origin, patient, careDraft, careOrigin } = page.value
   if (origin === 'list') go('patients')
   else if (origin === 'record') openRecord(patient)
-  else if (origin === 'care') go('care-form', { patient, draft: careDraft })
+  else if (origin === 'care') go('care-form', { patient, draft: careDraft, origin: careOrigin })
   else go('admission')
 }
 
 function onStayCreated(hospitalization) {
-  const { origin, patient, careDraft } = page.value
+  const { origin, patient, careDraft, careOrigin } = page.value
   // created because a care needed a stay: resume planning that care
-  if (origin === 'care') go('care-form', { patient, draft: careDraft })
+  if (origin === 'care') go('care-form', { patient, draft: careDraft, origin: careOrigin })
   else go('stay-created', { hospitalization })
+}
+
+// changing a stay: from its record ('record'), or from the patient list ('list')
+const openStayEdit = (stay, origin) => go('stay-edit', { stay, origin })
+
+const leaveStayEdit = () =>
+  page.value.origin === 'list' ? go('patients') : openRecord(page.value.stay.patient)
+
+// "Modifier le séjour" of the list: a patient with one stay goes straight to it,
+// otherwise to the stays of their record, to choose one
+async function editStayFromList(patient) {
+  const from = page.value
+  const stays = await listPatientHospitalizations(patient.id).catch(() => null)
+  if (page.value !== from) return // the user went elsewhere meanwhile
+  if (stays?.length === 1) openStayEdit(stays[0].encounter, 'list')
+  else openRecord(patient, { focusStays: true })
 }
 
 const stayBackLabel = {
@@ -91,19 +157,55 @@ const stayBackLabel = {
 
 // ---- care ----
 
-const planCare = (patient = null) => go('care-form', { patient })
-const editCare = (appointment) => go('care-form', { appointment })
+// origin: where the care form was opened from, to come back there
+//   'calendar' (calendar, sidebar), 'list' (patient list), 'record' (patient record)
+const planCare = (patient = null, origin = 'calendar') => go('care-form', { patient, origin })
+const editCare = (appointment, origin = 'calendar') => go('care-form', { appointment, origin })
+
+const careBackLabel = {
+  calendar: 'Retour au calendrier',
+  list: 'Retour à la liste',
+  record: 'Retour à la fiche',
+}
+
+// patient: the care's patient, to come back to their record or calendar
+function leaveCare(patient) {
+  const { origin, name } = page.value
+  if (origin === 'list') go('patients')
+  else if (origin === 'record' && patient) openRecord(patient)
+  // after saving, the calendar shows the care just saved: the one of its patient
+  else if (name === 'care-created') openPatientCalendar(patient)
+  else go('calendar')
+}
 </script>
 
 <template>
-  <div class="layout">
+  <div v-if="restoring || restoreError" class="restoring">
+    <template v-if="restoreError">
+      <div class="notice notice-error" role="alert">
+        <AppIcon name="alert-circle" :size="16" />
+        {{ restoreError }}
+      </div>
+      <div class="buttons">
+        <button type="button" class="btn" @click="logout">Se reconnecter</button>
+        <button type="button" class="btn btn-primary" @click="restoreSession">Réessayer</button>
+      </div>
+    </template>
+    <p v-else class="muted">Chargement…</p>
+  </div>
+  <LoginView v-else-if="!session.user" />
+  <div v-else class="layout">
     <AppSidebar
       :section="section"
       v-model:show-service-care="calendar.service"
       v-model:show-my-care="calendar.mine"
       v-model:show-selected-patient="calendar.onlySelectedPatient"
       :selected-patient-name="selectedPatientName"
+      :selected-patient="selectedPatient"
+      :refresh-key="savedCare"
       @navigate="navigate"
+      @open-care="editCare"
+      @logout="logout"
     />
     <main class="main">
       <!-- Patients -->
@@ -114,7 +216,8 @@ const editCare = (appointment) => go('care-form', { appointment })
         @create-stay="openStayForm($event, { origin: 'list' })"
         @open="openRecord"
         @edit="go('patient-edit', { patient: $event })"
-        @edit-stay="openRecord($event, { editStays: true })"
+        @edit-stay="editStayFromList"
+        @plan-care="planCare($event, 'list')"
       />
       <PatientFormView
         v-else-if="page.name === 'patient-form'"
@@ -131,16 +234,29 @@ const editCare = (appointment) => go('care-form', { appointment })
         v-else-if="page.name === 'patient-record'"
         :key="page.patientId"
         :patient-id="page.patientId"
-        :edit-stays="page.editStays"
+        :focus-stays="page.focusStays"
         @back="go('patients')"
         @edit="go('patient-edit', { patient: $event })"
         @add-stay="openStayForm($event, { origin: 'record' })"
+        @edit-stay="openStayEdit($event, 'record')"
+        @plan-care="planCare($event, 'record')"
+        @open-care="editCare($event, 'record')"
+      />
+      <StayFormView
+        v-else-if="page.name === 'stay-edit'"
+        :key="`stay-edit-${page.stay.id}`"
+        :patient="page.stay.patient"
+        :stay="page.stay"
+        :back-label="page.origin === 'list' ? 'Retour à la liste' : 'Retour à la fiche'"
+        @saved="openRecord(page.stay.patient)"
+        @deleted="openRecord(page.stay.patient)"
+        @back="leaveStayEdit"
       />
       <PatientFormView
         v-else-if="page.name === 'patient-edit'"
         :key="`edit-${page.patient.id}`"
         :patient="page.patient"
-        @saved="openRecord"
+        @saved="onPatientSaved"
         @cancel="openRecord(page.patient)"
       />
 
@@ -178,6 +294,7 @@ const editCare = (appointment) => go('care-form', { appointment })
         :hospitalization="page.hospitalization"
         @new-admission="navigate('admission')"
         @record="openRecord"
+        @plan-care="planCare($event, 'record')"
       />
 
       <!-- Calendrier -->
@@ -187,18 +304,26 @@ const editCare = (appointment) => go('care-form', { appointment })
         :initial-patient="page.patient ?? null"
         :appointment="page.appointment ?? null"
         :draft="page.draft ?? null"
-        @saved="(a) => go('care-created', { appointment: a, created: !page.appointment })"
-        @cancel="go('calendar')"
+        :back-label="careBackLabel[page.origin]"
+        @saved="
+          (a) => {
+            savedCare++
+            go('care-created', { appointment: a, created: !page.appointment, origin: page.origin })
+          }
+        "
+        @cancel="leaveCare(page.patient ?? page.appointment?.patient)"
         @create-stay="
-          ({ patient, draft }) => openStayForm(patient, { origin: 'care', careDraft: draft })
+          ({ patient, draft }) =>
+            openStayForm(patient, { origin: 'care', careDraft: draft, careOrigin: page.origin })
         "
       />
       <CareCreatedView
         v-else-if="page.name === 'care-created'"
         :appointment="page.appointment"
         :created="page.created"
-        @plan-another="planCare"
-        @calendar="openPatientCalendar"
+        :back-label="careBackLabel[page.origin]"
+        @plan-another="planCare($event, page.origin)"
+        @back="leaveCare"
       />
       <CalendarView
         v-else
@@ -213,6 +338,16 @@ const editCare = (appointment) => go('care-form', { appointment })
 </template>
 
 <style scoped>
+.restoring {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  min-height: 100vh;
+  padding: 24px 16px;
+}
+
 .layout {
   display: flex;
   min-height: 100vh;

@@ -40,6 +40,13 @@ export const STAY_STATUSES = [
   { value: 'in-progress', label: 'En cours' },
 ]
 
+// a stay being changed can also be ended or cancelled
+export const STAY_EDIT_STATUSES = [
+  ...STAY_STATUSES,
+  { value: 'finished', label: 'Terminé' },
+  { value: 'cancelled', label: 'Annulé' },
+]
+
 export const STAY_TYPES = [
   { value: 'INPATIENT', label: 'Hospitalisation' },
   { value: 'EMERGENCY', label: 'Urgence' },
@@ -51,6 +58,12 @@ export const labelOf = (options, value) => options.find((o) => o.value === value
 export const GENDERS = [
   { value: 'female', label: 'F' },
   { value: 'male', label: 'M' },
+]
+
+export const CARE_STATUSES = [
+  { value: 'PLANNED', label: 'Planifié' },
+  { value: 'DONE', label: 'Réalisé' },
+  { value: 'CANCELLED', label: 'Annulé' },
 ]
 
 export const TIME_CONSTRAINTS = [
@@ -74,6 +87,12 @@ export function careWhen(appointment) {
     ? `${day} de ${start} à ${formatTime(appointment.scheduled_end)}`
     : `${day} à ${start}`
 }
+
+// a care is late when it is still planned and its time has passed
+// (the end of the window for a weak constraint). Times are local, like the clock
+export const careDueAt = (a) =>
+  new Date(a.time_constraint === 'WEAK' ? a.scheduled_end : a.scheduled_start)
+export const isLateCare = (a, now = new Date()) => a.status === 'PLANNED' && careDueAt(a) < now
 
 // the date part of a stay's end: actual discharge, or the expected one
 export function stayEnd(encounter) {

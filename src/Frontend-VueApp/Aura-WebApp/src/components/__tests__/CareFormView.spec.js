@@ -19,7 +19,6 @@ const LEA_STAY = hospitalizationOf(stay(20, LEA, '2026-10-20T08:00:00'))
 
 function mockBackend(extra = []) {
   return mockApi([
-    ['GET', /\/api\/care-types$/, 200, CARE_TYPES],
     ['GET', /\/api\/practitioners$/, 200, PRACTITIONERS],
     ['GET', /\/api\/patients\?/, 200, [LEA, LEA_2, NORA]],
     ['GET', /\/api\/patients\/3\/current-hospitalization$/, 200, LEA_STAY],
@@ -34,7 +33,7 @@ const input = (wrapper, label) =>
   wrapper.findAll('.field').find((f) => f.find('.field-label').text().startsWith(label))
 
 async function fillStrongCare(wrapper) {
-  await wrapper.get('select[required]').setValue(CARE_TYPES[0].id)
+  await input(wrapper, 'Type de soin').get('input').setValue(CARE_TYPES[0])
   await wrapper.get('input[value="STRONG"]').setValue(true)
   await input(wrapper, 'Heure précise').get('input').setValue('14:00')
 }
@@ -80,7 +79,7 @@ it('blocks a patient without a current stay and offers to create it', async () =
   expect(patient.id).toBe(7)
   // what was typed is kept, to resume after creating the stay
   expect(draft).toMatchObject({
-    careTypeId: CARE_TYPES[0].id,
+    careType: CARE_TYPES[0],
     constraint: 'STRONG',
     exactTime: '14:00',
   })
@@ -88,11 +87,16 @@ it('blocks a patient without a current stay and offers to create it', async () =
 
 it('resumes a draft after the stay was created', async () => {
   mockBackend()
-  const draft = { careTypeId: 2, constraint: 'STRONG', date: '2026-10-24', exactTime: '09:00' }
+  const draft = {
+    careType: CARE_TYPES[1],
+    constraint: 'STRONG',
+    date: '2026-10-24',
+    exactTime: '09:00',
+  }
   const wrapper = mount(CareFormView, { props: { today: TODAY, initialPatient: LEA, draft } })
   await flushPromises()
 
-  expect(wrapper.get('select[required]').element.value).toBe('2')
+  expect(input(wrapper, 'Type de soin').get('input').element.value).toBe(CARE_TYPES[1])
   expect(input(wrapper, 'Heure précise').get('input').element.value).toBe('09:00')
   expect(submit(wrapper).attributes('disabled')).toBeUndefined()
 })
@@ -103,7 +107,7 @@ it('creates a care with a time window, caregivers and a validator', async () => 
   const wrapper = mount(CareFormView, { props: { today: TODAY, initialPatient: LEA } })
   await flushPromises()
 
-  await wrapper.get('select[required]').setValue(CARE_TYPES[1].id)
+  await input(wrapper, 'Type de soin').get('input').setValue(`  ${CARE_TYPES[1]} `)
   await wrapper.get('input[value="WEAK"]').setValue(true)
   await input(wrapper, 'Début de la plage').get('input').setValue('15:00')
   await input(wrapper, 'Fin de la plage').get('input').setValue('13:00')
@@ -126,7 +130,7 @@ it('creates a care with a time window, caregivers and a validator', async () => 
   expect(sentTo('POST', /\/api\/appointments$/)).toEqual([
     {
       patient_id: 3,
-      activity_definition_id: CARE_TYPES[1].id,
+      care_type: CARE_TYPES[1],
       prescribed_on: '2026-10-23',
       time_constraint: 'WEAK',
       scheduled_start: '2026-10-23T13:00:00',
@@ -157,4 +161,28 @@ it('edits a care: prefilled, patient fixed, saved with PUT', async () => {
   const [body] = sentTo('PUT', /\/api\/appointments\/9$/)
   expect(body).toMatchObject({ scheduled_start: '2026-10-20T10:00:00', status: 'PLANNED' })
   expect(body.patient_id).toBeUndefined()
+})
+
+it('refuses a care date outside the stay', async () => {
+  const care = appointment(9, LEA, '2026-10-20T09:30:00', {
+    encounter: stay(13, LEA, '2026-10-19T08:00:00', { actual: '2026-10-22T12:00:00' }),
+  })
+  mockBackend()
+  const wrapper = mount(CareFormView, { props: { today: TODAY, appointment: care } })
+  await flushPromises()
+  const date = input(wrapper, 'Date de réalisation').get('input')
+  const refused = () => wrapper.text().includes('Le soin doit avoir lieu pendant le séjour')
+
+  await date.setValue('18/10/2026') // before the admission
+  expect(refused()).toBe(true)
+  expect(wrapper.text()).toContain('du 19/10/2026 08:00 au 22/10/2026 12:00')
+  expect(submit(wrapper).attributes('disabled')).toBeDefined()
+
+  await date.setValue('22/10/2026') // the discharge day, after it
+  await input(wrapper, 'Heure précise').get('input').setValue('12:30')
+  expect(refused()).toBe(true)
+
+  await input(wrapper, 'Heure précise').get('input').setValue('11:00')
+  expect(refused()).toBe(false)
+  expect(submit(wrapper).attributes('disabled')).toBeUndefined()
 })

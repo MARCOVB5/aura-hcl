@@ -16,19 +16,8 @@ if TYPE_CHECKING:
   from app.models.practitioner import Practitioner
 
 '''
-Care planning: the kinds of care the department provides, and the care
-appointments scheduled for a patient during a stay
+Care planning: the care appointments scheduled for a patient during a stay
 '''
-
-class ActivityDefinition(Base):
-  """A type of care (e.g. "Prise de sang"), the list is seeded by a migration"""
-  __tablename__ = "activity_definition"
-
-  id : Mapped[int] = mapped_column(ID, primary_key=True, autoincrement=True)
-  code : Mapped[str] = mapped_column(String(32), unique=True)
-  name : Mapped[str] = mapped_column(String(255))
-  description : Mapped[str | None] = mapped_column(Text)
-
 
 class TimeConstraint(enum.Enum):
   WEAK = "WEAK"     # to do within a time window: scheduled_start -> scheduled_end
@@ -58,7 +47,8 @@ class Appointment(Base):
   patient_id : Mapped[int] = mapped_column(ID, ForeignKey("patient.id"))
   # a care is always attached to the stay that was in progress when it was planned
   encounter_id : Mapped[int] = mapped_column(ID, ForeignKey("encounter.id"))
-  activity_definition_id : Mapped[int] = mapped_column(ID, ForeignKey("activity_definition.id"))
+  # the kind of care, typed freely (e.g. "Prise de sang")
+  care_type : Mapped[str] = mapped_column(String(255))
   prescribed_on : Mapped[datetime.date] = mapped_column(Date)
   time_constraint : Mapped[TimeConstraint] = mapped_column(Enum(TimeConstraint, values_callable=enum_values))
   scheduled_start : Mapped[datetime.datetime] = mapped_column(DateTime)
@@ -74,7 +64,6 @@ class Appointment(Base):
 
   patient : Mapped[Patient] = relationship()
   encounter : Mapped[Encounter] = relationship()
-  activity_definition : Mapped[ActivityDefinition] = relationship()
   validated_by : Mapped[Practitioner | None] = relationship()
   performers : Mapped[list[Practitioner]] = relationship(
     secondary=appointment_performer,

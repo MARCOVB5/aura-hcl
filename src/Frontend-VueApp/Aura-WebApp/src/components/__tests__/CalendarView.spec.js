@@ -1,6 +1,7 @@
-import { afterEach, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 import { flushPromises, mount } from '@vue/test-utils'
 import CalendarView from '../../views/CalendarView.vue'
+import { endSession, startSession } from '../../session.js'
 import {
   CARE_TYPES,
   LEA,
@@ -12,13 +13,13 @@ import {
   stay,
 } from './mockApi.js'
 
-const [BRUNO, ALICE, SIMON] = PRACTITIONERS // Bruno Azerty is the current user
+const [BRUNO, ALICE, SIMON] = PRACTITIONERS // Bruno Azerty is the logged-in user
 const TODAY = new Date(2026, 9, 23, 12, 0) // 23 October 2026
 
 const CARE = [
   // mine: Bruno is in charge
   appointment(1, LEA, '2026-10-20T09:30:00', {
-    activity_definition: CARE_TYPES[1],
+    care_type: CARE_TYPES[1],
     performers: [BRUNO, ALICE],
     validated_by: SIMON,
     note: 'À jeun',
@@ -46,7 +47,12 @@ function mountCalendar(props = {}) {
 
 const eventsOn = (wrapper, day) => wrapper.findAll(`[data-day="${day}"] .event`)
 
+beforeEach(() => {
+  startSession('token', { id: 1, username: 'bazerty', practitioner_id: BRUNO.id })
+})
+
 afterEach(() => {
+  endSession()
   vi.restoreAllMocks()
 })
 

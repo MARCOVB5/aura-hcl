@@ -6,7 +6,7 @@ import { STAY_STATUSES, STAY_TYPES, formatDateTime, labelOf, patientName } from 
 const props = defineProps({
   hospitalization: { type: Object, required: true },
 })
-const emit = defineEmits(['new-admission', 'record'])
+const emit = defineEmits(['new-admission', 'record', 'plan-care'])
 
 const encounter = computed(() => props.hospitalization.encounter)
 const patient = computed(() => encounter.value.patient)
@@ -72,8 +72,12 @@ const name = computed(() => patientName(patient.value) || 'Patient sous X')
             <button type="button" class="btn" @click="emit('new-admission')">
               Nouvelle admission
             </button>
-            <button type="button" class="btn btn-primary" @click="emit('record', patient)">
+            <button type="button" class="btn" @click="emit('record', patient)">
               Voir le dossier patient
+            </button>
+            <button type="button" class="btn btn-primary" @click="emit('plan-care', patient)">
+              <AppIcon name="plus" :size="16" />
+              Planifier un soin
             </button>
           </div>
         </div>

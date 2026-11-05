@@ -5,7 +5,7 @@ import { listPatients } from '../api.js'
 import { formatDate, normalize, patientName } from '../format.js'
 
 const selected = defineModel('selected', { type: Object, default: null })
-const emit = defineEmits(['create', 'create-stay', 'open', 'edit', 'edit-stay'])
+const emit = defineEmits(['create', 'create-stay', 'open', 'edit', 'edit-stay', 'plan-care'])
 
 const patients = ref([])
 const loading = ref(true)
@@ -17,6 +17,9 @@ async function load() {
   error.value = ''
   try {
     patients.value = await listPatients()
+    // the selected patient may have changed since it was picked (allergies…)
+    if (selected.value)
+      selected.value = patients.value.find((p) => p.id === selected.value.id) ?? selected.value
   } catch (e) {
     error.value = e.message
   } finally {
@@ -133,6 +136,10 @@ const countLabel = computed(() => {
                 <AppIcon name="calendar" :size="14" />
                 Modifier le séjour
               </button>
+              <button type="button" class="btn btn-small" @click.stop="emit('plan-care', patient)">
+                <AppIcon name="plus" :size="14" />
+                Planifier un soin
+              </button>
             </div>
           </td>
         </tr>
@@ -194,6 +201,7 @@ const countLabel = computed(() => {
 .row-buttons {
   display: inline-flex;
   gap: 8px;
+  white-space: nowrap;
 }
 
 /* the name opens the patient record */

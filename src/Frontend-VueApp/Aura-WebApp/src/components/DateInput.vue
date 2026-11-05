@@ -33,6 +33,9 @@ function parse(text) {
 }
 
 const text = ref(toDisplay(model.value))
+// true while the field shows something, even incomplete (the model is then '')
+const filled = defineModel('filled', { type: Boolean, default: false })
+watch(text, (value) => (filled.value = value !== ''), { immediate: true })
 const invalid = ref(false)
 
 // a value set from outside (form reset, calendar) replaces what is shown

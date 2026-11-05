@@ -1,7 +1,7 @@
 from datetime import datetime
 from typing import Annotated
 
-from pydantic import AfterValidator, BaseModel, ConfigDict, Field, StringConstraints
+from pydantic import AfterValidator, BaseModel, ConfigDict, Field, NaiveDatetime, StringConstraints
 
 from app.models.encounter import EncounterStatus, EncounterTypeCode
 from app.schemas.Patient import PatientOut
@@ -21,8 +21,9 @@ class EncounterCreate(BaseModel):
   stay_number: str = Field(min_length=1, max_length=32)
   status: EncounterStatus
   encounter_type_code: EncounterTypeCode = EncounterTypeCode.INPATIENT
-  admission_date: datetime
-  expected_discharge_date: datetime | None = None
+  # local times, like the database: a date with a time zone is refused (422)
+  admission_date: NaiveDatetime
+  expected_discharge_date: NaiveDatetime | None = None
   reason: str | None = Field(default=None, max_length=255)
   location: LocationText = None
 
@@ -34,9 +35,9 @@ class EncounterUpdate(BaseModel):
   stay_number: str | None = Field(default=None, min_length=1, max_length=32)
   status: EncounterStatus | None = None
   encounter_type_code: EncounterTypeCode | None = None
-  admission_date: datetime | None = None
-  expected_discharge_date: datetime | None = None
-  actual_discharge_date: datetime | None = None
+  admission_date: NaiveDatetime | None = None
+  expected_discharge_date: NaiveDatetime | None = None
+  actual_discharge_date: NaiveDatetime | None = None
   reason: str | None = Field(default=None, max_length=255)
   location: LocationText = None
 

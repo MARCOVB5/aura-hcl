@@ -1,3 +1,5 @@
+import { endSession, session } from './session.js'
+
 // Calls to the FastAPI backend (src/backend). Set VITE_API_URL in .env to point elsewhere.
 export const API_URL = import.meta.env.VITE_API_URL ?? 'http://127.0.0.1:8000'
 
@@ -11,6 +13,7 @@ export class ApiError extends Error {
 
 // messages of src/backend/src/app/services, shown in French in the UI
 const BACKEND_MESSAGES = {
+  'Invalid credentials or session': 'Identifiant ou mot de passe incorrect.',
   'IPP already registered': 'Cet IPP est déjà attribué à un autre patient.',
   'Stay number already registered': 'Ce numéro de séjour existe déjà.',
   'Patient not found': 'Patient introuvable.',
@@ -21,6 +24,8 @@ const BACKEND_MESSAGES = {
   'Care type not found': 'Type de soin introuvable.',
   'Practitioner not found': 'Soignant introuvable.',
   'Appointment not found': 'Soin introuvable.',
+  'Care outside its stay': 'Le soin doit avoir lieu pendant le séjour.',
+  'Stay has care outside its dates': 'Des soins de ce séjour sont en dehors de ces dates.',
 }
 
 // The backend sends {"detail": "..."} for 4xx errors and {"detail": [{msg, loc}, ...]} for 422
@@ -34,23 +39,40 @@ function errorMessage(status, body) {
 }
 
 async function request(path, options = {}) {
+  // every route but the login needs the token of the logged-in user
+  const auth = session.token ? { Authorization: `Bearer ${session.token}` } : {}
   let response
   try {
     response = await fetch(`${API_URL}${path}`, {
       ...options,
-      headers: { 'Content-Type': 'application/json', ...options.headers },
+      headers: { 'Content-Type': 'application/json', ...auth, ...options.headers },
     })
   } catch {
     throw new ApiError(`Impossible de joindre le serveur (${API_URL}).`)
   }
   const body = await response.json().catch(() => null) // 204 has no body
   if (!response.ok) {
+    // the token has expired (after 8 hours) or is no longer valid: back to the login page
+    if (response.status === 401 && session.token) endSession({ expired: true })
     throw new ApiError(errorMessage(response.status, body), response.status, body?.detail)
   }
   return body
 }
 
 const send = (method, path, data) => request(path, { method, body: JSON.stringify(data) })
+
+// authentication
+
+// gives { access_token, token_type, expires_in }; 401 when the username or password is wrong
+export function login(username, password) {
+  return send('POST', '/api/auth/login', { username, password })
+}
+
+// { id, username, practitioner_id, name_given, name_family, profession }.
+// token: the one just received from login, before the session starts
+export function getCurrentUser(token = session.token) {
+  return request('/api/auth/me', { headers: { Authorization: `Bearer ${token}` } })
+}
 
 // patients
 
@@ -108,7 +130,6 @@ export function deleteHospitalization(encounterId) {
 
 // reference lists
 
-export const listCareTypes = () => request('/api/care-types')
 export const listPractitioners = () => request('/api/practitioners')
 
 // care appointments

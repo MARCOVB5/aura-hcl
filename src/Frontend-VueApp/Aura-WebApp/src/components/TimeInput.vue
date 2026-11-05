@@ -26,6 +26,9 @@ function parse(text) {
 }
 
 const text = ref(model.value)
+// true while the field shows something, even incomplete (the model is then '')
+const filled = defineModel('filled', { type: Boolean, default: false })
+watch(text, (value) => (filled.value = value !== ''), { immediate: true })
 const invalid = ref(false)
 
 watch(model, (value) => {

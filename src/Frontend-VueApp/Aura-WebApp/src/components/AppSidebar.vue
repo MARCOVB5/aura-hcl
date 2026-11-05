@@ -1,12 +1,17 @@
 <script setup>
 import AppIcon from './AppIcon.vue'
-import { CURRENT_USER } from '../currentUser.js'
+import SelectedPatientInfo from './SelectedPatientInfo.vue'
+import { session } from '../session.js'
 
 defineProps({
   section: { type: String, required: true },
   selectedPatientName: { type: String, default: '' },
+  // the patient selected in the list: their allergies and late care are shown
+  selectedPatient: { type: Object, default: null },
+  // changes when a care is saved, to show the care as it is now
+  refreshKey: { type: null, default: null },
 })
-const emit = defineEmits(['navigate'])
+const emit = defineEmits(['navigate', 'logout', 'open-care'])
 // what the calendar shows: the department's care, the user's own care,
 // or only the care and stays of the patient selected in the list
 const showServiceCare = defineModel('showServiceCare', { type: Boolean, default: true })
@@ -70,14 +75,29 @@ const NAV_ITEMS = [
       </label>
     </section>
 
-    <div class="account">
-      <div class="avatar">{{ CURRENT_USER.name_given[0] }}</div>
+    <SelectedPatientInfo
+      v-if="selectedPatient"
+      :key="selectedPatient.id"
+      :patient="selectedPatient"
+      :refresh-key="refreshKey"
+      @open-care="emit('open-care', $event)"
+    />
+
+    <div v-if="session.user" class="account">
+      <div class="avatar">
+        {{ (session.user.name_given || session.user.name_family || session.user.username)[0] }}
+      </div>
       <div>
-        <div class="account-name">{{ CURRENT_USER.name_given }} {{ CURRENT_USER.name_family }}</div>
-        <div class="account-status">Statut : {{ CURRENT_USER.status }}</div>
+        <div class="account-name">
+          {{
+            [session.user.name_given, session.user.name_family].filter(Boolean).join(' ') ||
+            session.user.username
+          }}
+        </div>
+        <div class="account-status">Statut : {{ session.user.profession || 'Non renseigné' }}</div>
       </div>
     </div>
-    <button type="button" class="nav-item logout">
+    <button type="button" class="nav-item logout" @click="emit('logout')">
       <AppIcon name="log-out" />
       Déconnexion
     </button>

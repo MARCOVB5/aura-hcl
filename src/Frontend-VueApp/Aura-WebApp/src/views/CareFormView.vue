@@ -6,7 +6,6 @@ import TimeInput from '../components/TimeInput.vue'
 import {
   createAppointment,
   getCurrentHospitalization,
-  listCareTypes,
   listPatients,
   listPractitioners,
   updateAppointment,
@@ -15,6 +14,7 @@ import {
   TIME_CONSTRAINTS,
   dayKey,
   formatDate,
+  formatDateTime,
   formatTime,
   normalize,
   patientDetails,
@@ -31,22 +31,20 @@ const props = defineProps({
   draft: { type: Object, default: null },
   // current date, injectable for tests
   today: { type: Date, default: () => new Date() },
+  // the page the form was opened from
+  backLabel: { type: String, default: 'Retour au calendrier' },
 })
 const emit = defineEmits(['saved', 'cancel', 'create-stay'])
 
 const editing = computed(() => props.appointment !== null)
 
-// ---- reference lists ----
+// ---- reference list ----
 
-const careTypes = ref([])
 const practitioners = ref([])
 const error = ref('')
 onMounted(async () => {
   try {
-    ;[careTypes.value, practitioners.value] = await Promise.all([
-      listCareTypes(),
-      listPractitioners(),
-    ])
+    practitioners.value = await listPractitioners()
   } catch (e) {
     error.value = e.message
   }
@@ -58,7 +56,7 @@ function valuesOf(a) {
   const weak = a.time_constraint === 'WEAK'
   return {
     prescribedOn: a.prescribed_on,
-    careTypeId: a.activity_definition.id,
+    careType: a.care_type,
     constraint: a.time_constraint,
     date: a.scheduled_start.slice(0, 10),
     start: weak ? formatTime(a.scheduled_start) : '',
@@ -72,7 +70,7 @@ function valuesOf(a) {
 
 const form = reactive({
   prescribedOn: dayKey(props.today),
-  careTypeId: '',
+  careType: '',
   constraint: '', // 'WEAK' (time window) or 'STRONG' (precise time)
   date: dayKey(props.today),
   start: '',
@@ -158,10 +156,33 @@ const timeFilled = computed(() =>
     : form.constraint === 'WEAK' && form.start !== '' && form.end !== '' && !windowInvalid.value,
 )
 const fieldsFilled = computed(
-  () => form.prescribedOn && form.careTypeId && form.date && timeFilled.value,
+  () => form.prescribedOn && form.careType.trim() && form.date && timeFilled.value,
 )
+
+// the care takes place during its stay: from the admission to the discharge, if there is one
+// (same check as the backend). The values are "YYYY-MM-DDTHH:mm": they compare as strings
+const outsideStay = computed(() => {
+  if (!stay.value || !form.date || !timeFilled.value) return false
+  const weak = form.constraint === 'WEAK'
+  const first = `${form.date}T${weak ? form.start : form.exactTime}`
+  const last = weak ? `${form.date}T${form.end}` : first
+  const discharge = stay.value.actual_discharge_date?.slice(0, 16)
+  return first < stay.value.admission_date.slice(0, 16) || (discharge && last > discharge)
+})
+const stayDates = computed(() => {
+  if (!stay.value) return ''
+  const from = formatDateTime(stay.value.admission_date)
+  const to = stay.value.actual_discharge_date
+  return to ? `du ${from} au ${formatDateTime(to)}` : `à partir du ${from}`
+})
+
 const canSubmit = computed(
-  () => patient.value && stayState.value === 'found' && fieldsFilled.value && !submitting.value,
+  () =>
+    patient.value &&
+    stayState.value === 'found' &&
+    fieldsFilled.value &&
+    !outsideStay.value &&
+    !submitting.value,
 )
 
 // ---- caregivers in charge: chips + a select to add one ----
@@ -188,7 +209,7 @@ async function submit() {
   error.value = ''
   const weak = form.constraint === 'WEAK'
   const body = {
-    activity_definition_id: form.careTypeId,
+    care_type: form.careType.trim(),
     prescribed_on: form.prescribedOn,
     time_constraint: form.constraint,
     scheduled_start: `${form.date}T${weak ? form.start : form.exactTime}:00`,
@@ -224,12 +245,12 @@ function createStay() {
       <div>
         <h1 class="page-title">{{ editing ? 'Modifier le soin' : 'Planifier un soin' }}</h1>
         <p v-if="editing" class="page-description">
-          {{ appointment.activity_definition.name }} ·
+          {{ appointment.care_type }} ·
           {{ patientName(appointment.patient) || 'Patient sous X' }}
         </p>
       </div>
       <button type="button" class="btn btn-small" @click="emit('cancel')">
-        Retour au calendrier
+        {{ backLabel }}
       </button>
     </div>
   </header>
@@ -326,10 +347,7 @@ function createStay() {
           </label>
           <label class="field">
             <span class="field-label">Type de soin *</span>
-            <select v-model="form.careTypeId" class="input" required>
-              <option value="" disabled>Sélectionner un type de soin</option>
-              <option v-for="t in careTypes" :key="t.id" :value="t.id">{{ t.name }}</option>
-            </select>
+            <input v-model="form.careType" class="input" maxlength="255" required />
           </label>
         </div>
 
@@ -346,7 +364,7 @@ function createStay() {
         <div class="row" :class="form.constraint === 'STRONG' ? 'row-2' : 'row-3'">
           <label class="field">
             <span class="field-label">Date de réalisation *</span>
-            <DateInput v-model="form.date" required />
+            <DateInput v-model="form.date" :min="stay?.admission_date.slice(0, 10)" required />
           </label>
           <label v-if="form.constraint === 'STRONG'" class="field">
             <span class="field-label">Heure précise *</span>
@@ -417,6 +435,10 @@ function createStay() {
         <div v-if="windowInvalid" class="notice notice-error">
           <AppIcon name="alert-circle" :size="16" />
           La fin de la plage doit être après son début.
+        </div>
+        <div v-if="outsideStay" class="notice notice-error">
+          <AppIcon name="alert-circle" :size="16" />
+          Le soin doit avoir lieu pendant le séjour ({{ stayDates }}).
         </div>
         <div v-if="error" class="notice notice-error" role="alert">
           <AppIcon name="alert-circle" :size="16" />

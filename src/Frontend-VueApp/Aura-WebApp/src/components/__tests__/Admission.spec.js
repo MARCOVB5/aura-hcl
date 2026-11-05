@@ -129,3 +129,22 @@ it('shows the backend message for a duplicate stay number', async () => {
 
   expect(wrapper.get('[role="alert"]').text()).toContain('Ce numéro de séjour existe déjà.')
 })
+
+it('does not take a discharge date without its time as empty', async () => {
+  const wrapper = mount(StayFormView, { props: { patient: LEA } })
+  const field = (name) => wrapper.get(`[aria-label="${name}"]`)
+  await wrapper.get('input[maxlength="128"]').setValue('Lit A')
+  await field('Admission : date').setValue('05/11/2026')
+  await field('Admission : heure').setValue('20:20')
+  expect(wrapper.get('button[type="submit"]').attributes('disabled')).toBeUndefined()
+
+  // the screenshot of the bug: an expected discharge in 2024, with no time
+  await field('Sortie prévue : date').setValue('05/11/2024')
+  expect(wrapper.get('button[type="submit"]').attributes('disabled')).toBeDefined()
+  expect(wrapper.text()).toContain('Indiquez la date et l’heure de la sortie prévue.')
+
+  await field('Sortie prévue : heure').setValue('10:00')
+  expect(wrapper.text()).not.toContain('Indiquez la date')
+  expect(wrapper.text()).toContain('La sortie prévue doit être après la date d’admission.')
+  expect(wrapper.get('button[type="submit"]').attributes('disabled')).toBeDefined()
+})

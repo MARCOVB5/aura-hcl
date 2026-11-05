@@ -2,7 +2,7 @@
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import AppIcon from '../components/AppIcon.vue'
 import { listAppointments, listPatientHospitalizations } from '../api.js'
-import { isCurrentUser } from '../currentUser.js'
+import { isCurrentUser } from '../session.js'
 import {
   TIME_CONSTRAINTS,
   dayKey,
@@ -119,7 +119,7 @@ const events = computed(() =>
         id: a.id,
         kind,
         day: a.scheduled_start.slice(0, 10),
-        title: a.activity_definition.name,
+        title: a.care_type,
         subtitle: [timeLine(a), performerLine(a)].filter(Boolean).join(' · '),
         appointment: a,
       }
@@ -283,12 +283,12 @@ function whenLong(a) {
       :class="{ patient: patientFilter }"
       role="dialog"
       aria-modal="true"
-      :aria-label="opened.activity_definition.name"
+      :aria-label="opened.care_type"
     >
       <button type="button" class="icon-btn close" aria-label="Fermer" @click="opened = null">
         <AppIcon name="x" :size="18" />
       </button>
-      <h2 class="detail-title">{{ opened.activity_definition.name }}</h2>
+      <h2 class="detail-title">{{ opened.care_type }}</h2>
       <p class="detail-time">{{ whenLong(opened) }}</p>
       <p class="detail-patient">
         <span class="muted">Patient&nbsp;: </span>
@@ -310,7 +310,7 @@ function whenLong(a) {
       <p class="muted">Contrainte&nbsp;: {{ labelOf(TIME_CONSTRAINTS, opened.time_constraint) }}</p>
       <dl>
         <dt>Objet</dt>
-        <dd>{{ opened.activity_definition.name }}</dd>
+        <dd>{{ opened.care_type }}</dd>
         <dt>Notes</dt>
         <dd>{{ opened.note || 'Aucune note.' }}</dd>
       </dl>

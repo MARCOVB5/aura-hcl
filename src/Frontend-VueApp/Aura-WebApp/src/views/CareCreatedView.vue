@@ -15,13 +15,15 @@ const props = defineProps({
   appointment: { type: Object, required: true },
   // false after "Modifier": same page, other titles
   created: { type: Boolean, default: true },
+  // the page the care form was opened from
+  backLabel: { type: String, default: 'Retour au calendrier' },
 })
-const emit = defineEmits(['plan-another', 'calendar'])
+const emit = defineEmits(['plan-another', 'back'])
 
 const a = computed(() => props.appointment)
 const NOT_SET = 'Non renseigné'
 const details = computed(() => [
-  { label: 'Type de soin', value: a.value.activity_definition.name },
+  { label: 'Type de soin', value: a.value.care_type },
   { label: 'Date de prescription', value: formatDate(a.value.prescribed_on) },
   { label: 'Date et heure de réalisation', value: careWhen(a.value) },
   { label: 'Contrainte sur l’horaire', value: labelOf(TIME_CONSTRAINTS, a.value.time_constraint) },
@@ -53,7 +55,7 @@ const details = computed(() => [
           <h2 class="card-title">
             {{ created ? 'Soin créé' : 'Soin modifié' }}
           </h2>
-          <p class="card-description">{{ a.activity_definition.name }} · Le {{ careWhen(a) }}</p>
+          <p class="card-description">{{ a.care_type }} · Le {{ careWhen(a) }}</p>
         </div>
       </div>
 
@@ -97,8 +99,8 @@ const details = computed(() => [
             <button type="button" class="btn" @click="emit('plan-another', a.patient)">
               Planifier un autre soin
             </button>
-            <button type="button" class="btn btn-primary" @click="emit('calendar', a.patient)">
-              Retour au calendrier
+            <button type="button" class="btn btn-primary" @click="emit('back', a.patient)">
+              {{ backLabel }}
             </button>
           </div>
         </div>

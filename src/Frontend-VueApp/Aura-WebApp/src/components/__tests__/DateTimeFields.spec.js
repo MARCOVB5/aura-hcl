@@ -79,3 +79,21 @@ it('combines a date and a time, only once both are filled', async () => {
   await time.setValue('2215')
   expect(wrapper.props('modelValue')).toBe('2026-10-23T22:15')
 })
+
+it('says when only part of the date and time is typed', async () => {
+  const wrapper = withModel(DateTimeInput, '', { label: 'Sortie' })
+  const incomplete = () => wrapper.emitted('update:incomplete')?.at(-1)?.[0] ?? false
+  const date = wrapper.get('[aria-label="Sortie : date"]')
+  const time = wrapper.get('[aria-label="Sortie : heure"]')
+
+  expect(incomplete()).toBe(false)
+  await date.setValue('05/11/2024')
+  expect(incomplete()).toBe(true)
+  await time.setValue('10:00')
+  expect(incomplete()).toBe(false)
+  await date.setValue('05/11/20') // half-typed date
+  expect(incomplete()).toBe(true)
+  await date.setValue('')
+  await time.setValue('')
+  expect(incomplete()).toBe(false)
+})

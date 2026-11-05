@@ -28,10 +28,7 @@ export function sentTo(method, path) {
 // sample data in the backend's format
 export const LOCATION = 'Réanimation · Chambre 12 · Lit A'
 
-export const CARE_TYPES = [
-  { id: 1, code: 'PRISE_SANG', name: 'Prise de sang' },
-  { id: 2, code: 'REEVAL_RESP', name: 'Réévaluation respiratoire' },
-]
+export const CARE_TYPES = ['Prise de sang', 'Réévaluation respiratoire']
 
 const staff = (id, given, family, profession) => ({
   id,
@@ -105,7 +102,7 @@ export function appointment(id, patient, start, overrides = {}) {
     id,
     patient,
     encounter: stay(10 + patient.id, patient, '2026-10-19T08:00:00'),
-    activity_definition: CARE_TYPES[0],
+    care_type: CARE_TYPES[0],
     prescribed_on: start.slice(0, 10),
     time_constraint: 'STRONG',
     scheduled_start: start,

@@ -34,6 +34,9 @@ class HospitalizationManagementService:
     patient = self.patients.get(data.encounter.patient_id)
     if patient is None:
       raise NotFound("Patient not found")
+    expected = data.encounter.expected_discharge_date
+    if expected is not None and expected < data.encounter.admission_date:
+      raise AppError("Discharge date before admission date")
 
     try:
       encounter = self.encounters.create(Encounter(
@@ -87,11 +90,19 @@ class HospitalizationManagementService:
     for required in ("stay_number", "status", "encounter_type_code", "admission_date"):
       if required in changes and changes[required] is None:
         raise AppError(f"{required} cannot be empty")
+    # the form sends every field: the dates count as changed only if their values differ
+    dates_before = (encounter.admission_date, encounter.actual_discharge_date)
     for field, value in changes.items():
       setattr(encounter, field, value)
     for end in (encounter.expected_discharge_date, encounter.actual_discharge_date):
       if end is not None and end < encounter.admission_date:
         raise AppError("Discharge date before admission date")
+    # its care must stay within the new dates (see CareManagementService._check_within_stay)
+    dates_changed = (encounter.admission_date, encounter.actual_discharge_date) != dates_before
+    if dates_changed and self.appointments.exists_outside(
+      encounter_id, encounter.admission_date, encounter.actual_discharge_date
+    ):
+      raise Conflict("Stay has care outside its dates")
 
     try:
       self.session.commit()

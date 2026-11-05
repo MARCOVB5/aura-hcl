@@ -1,21 +1,14 @@
 from sqlalchemy import select
 from sqlalchemy.orm import Session, selectinload
 
-from app.models.care import ActivityDefinition
 from app.models.practitioner import Practitioner
 
 
 class ReferenceDAO:
-  """Read-only lists used by the forms: care types, caregivers"""
+  """Read-only list used by the forms: caregivers"""
 
   def __init__(self, session: Session):
     self.session = session
-
-  def list_care_types(self) -> list[ActivityDefinition]:
-    return list(self.session.scalars(select(ActivityDefinition).order_by(ActivityDefinition.name)))
-
-  def get_care_type(self, id: int) -> ActivityDefinition | None:
-    return self.session.get(ActivityDefinition, id)
 
   def list_practitioners(self) -> list[Practitioner]:
     stmt = (

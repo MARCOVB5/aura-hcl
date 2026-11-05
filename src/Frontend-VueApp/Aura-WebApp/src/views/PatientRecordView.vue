@@ -1,32 +1,48 @@
 <script setup>
-import { computed, nextTick, onMounted, reactive, ref } from 'vue'
+import { computed, nextTick, onMounted, ref } from 'vue'
 import AppIcon from '../components/AppIcon.vue'
-import DateInput from '../components/DateInput.vue'
+import { getPatient, listAppointments, listPatientHospitalizations } from '../api.js'
 import {
-  deleteHospitalization,
-  getPatient,
-  listPatientHospitalizations,
-  updateHospitalization,
-} from '../api.js'
-import { formatDate, patientName, stayEnd } from '../format.js'
+  CARE_STATUSES,
+  careWhen,
+  formatDate,
+  isLateCare,
+  labelOf,
+  patientName,
+  practitionerName,
+  stayEnd,
+} from '../format.js'
 
 const GENDER_LABELS = { female: 'Féminin', male: 'Masculin', other: 'Autre' }
 
 const props = defineProps({
   patientId: { type: Number, required: true },
-  // opened with "Modifier le séjour" from the patient list: the stays are shown in edit mode
-  editStays: { type: Boolean, default: false },
+  // opened with "Modifier le séjour" from the patient list: the page scrolls to the stays
+  focusStays: { type: Boolean, default: false },
 })
-const emit = defineEmits(['back', 'edit', 'add-stay'])
+const emit = defineEmits(['back', 'edit', 'add-stay', 'edit-stay', 'plan-care', 'open-care'])
 
 const patient = ref(null)
 const stays = ref([])
+const appointments = ref([])
 const loading = ref(true)
 const error = ref('')
+
+// the care are loaded on their own: an error there only shows in the care card
+const careError = ref('')
+async function loadCare() {
+  careError.value = ''
+  try {
+    appointments.value = await listAppointments({ patientId: props.patientId })
+  } catch (e) {
+    careError.value = e.message
+  }
+}
 
 async function load() {
   loading.value = true
   error.value = ''
+  const care = loadCare()
   try {
     const [p, h] = await Promise.all([
       getPatient(props.patientId),
@@ -39,12 +55,12 @@ async function load() {
   } finally {
     loading.value = false
   }
+  await care
 }
 const staysCard = ref(null)
 onMounted(async () => {
   await load()
-  if (!props.editStays || error.value) return
-  if (stays.value.length) startEditing()
+  if (!props.focusStays || error.value) return
   await nextTick()
   staysCard.value?.scrollIntoView?.({ block: 'start' })
 })
@@ -70,74 +86,9 @@ const fields = computed(() => {
   ]
 })
 
-// ---- stays: read mode, or edit mode with one row per stay ----
-
-const editingStays = ref(false)
-const drafts = ref([]) // { id, start, end, location, removed }
-const savingStays = ref(false)
-const staysError = ref('')
-
 const dateOf = (iso) => (iso ? iso.slice(0, 10) : '')
 
-function startEditing() {
-  drafts.value = stays.value.map((s) =>
-    reactive({
-      id: s.id,
-      start: dateOf(s.admission_date),
-      end: dateOf(s.actual_discharge_date),
-      location: s.location ?? '',
-      removed: false,
-    }),
-  )
-  staysError.value = ''
-  editingStays.value = true
-}
-
-// the date inputs only change the day: the time of the original value is kept
-function withDay(day, originalIso, defaultTime) {
-  const time = originalIso ? originalIso.slice(11, 19) : defaultTime
-  return `${day}T${time}`
-}
-
-async function saveStays() {
-  savingStays.value = true
-  staysError.value = ''
-  let saved = 0 // stays already changed when an error stops the loop
-  try {
-    for (const draft of drafts.value) {
-      const stay = stays.value.find((s) => s.id === draft.id)
-      if (!stay) continue // deleted by a previous attempt
-      if (draft.removed) {
-        await deleteHospitalization(draft.id)
-        saved++
-        continue
-      }
-      const changes = {}
-      if (draft.start && draft.start !== dateOf(stay.admission_date))
-        changes.admission_date = withDay(draft.start, stay.admission_date, '08:00:00')
-      if (draft.end !== dateOf(stay.actual_discharge_date))
-        changes.actual_discharge_date = draft.end
-          ? withDay(draft.end, stay.actual_discharge_date, '12:00:00')
-          : null
-      if ((draft.location.trim() || null) !== stay.location)
-        changes.location = draft.location.trim() || null
-      if (Object.keys(changes).length) {
-        await updateHospitalization(draft.id, changes)
-        saved++
-      }
-    }
-    editingStays.value = false
-  } catch (e) {
-    staysError.value = saved
-      ? `${e.message} Les modifications précédentes ont été enregistrées.`
-      : e.message
-  } finally {
-    savingStays.value = false
-    // what was saved before an error is kept: show the stays as they are now
-    const h = await listPatientHospitalizations(props.patientId).catch(() => null)
-    if (h) stays.value = h.map((x) => x.encounter)
-  }
-}
+const countLabel = (n, word) => (n ? `${n} ${word}${n > 1 ? 's' : ''}` : `Aucun ${word}`)
 </script>
 
 <template>
@@ -198,46 +149,13 @@ async function saveStays() {
         <div class="card-header with-action">
           <div>
             <h2 class="card-title">Informations du séjour</h2>
-            <p class="card-description">
-              {{
-                stays.length
-                  ? `${stays.length} séjour${stays.length > 1 ? 's' : ''}`
-                  : 'Aucun séjour'
-              }}
-            </p>
+            <p class="card-description">{{ countLabel(stays.length, 'séjour') }}</p>
           </div>
-          <div v-if="editingStays" class="buttons">
-            <button type="button" class="btn" :disabled="savingStays" @click="editingStays = false">
-              Annuler
-            </button>
-            <button
-              type="button"
-              class="btn btn-primary"
-              :disabled="savingStays"
-              @click="saveStays"
-            >
-              {{ savingStays ? 'Enregistrement…' : 'Enregistrer' }}
-            </button>
-          </div>
-          <button
-            v-else-if="stays.length"
-            type="button"
-            class="btn btn-primary"
-            @click="startEditing"
-          >
-            <AppIcon name="pencil" :size="16" />
-            Modifier le séjour
-          </button>
         </div>
 
         <div class="card-body">
-          <div v-if="staysError" class="notice notice-error" role="alert">
-            <AppIcon name="alert-circle" :size="16" />
-            {{ staysError }}
-          </div>
-
-          <template v-if="!editingStays">
-            <dl v-for="stay in stays" :key="stay.id" class="stay">
+          <div v-for="stay in stays" :key="stay.id" class="stay">
+            <dl>
               <div>
                 <dt>Date de début</dt>
                 <dd>{{ formatDate(dateOf(stay.admission_date)) }}</dd>
@@ -265,49 +183,71 @@ async function saveStays() {
                 <dd>{{ stay.stay_number }}</dd>
               </div>
             </dl>
-            <p v-if="!stays.length" class="muted">Ce patient n’a aucun séjour.</p>
-          </template>
-
-          <template v-else>
-            <div
-              v-for="draft in drafts"
-              :key="draft.id"
-              class="stay-row"
-              :class="{ removed: draft.removed }"
-            >
-              <label class="field">
-                <span class="field-label">Date de début</span>
-                <DateInput v-model="draft.start" :disabled="draft.removed" />
-              </label>
-              <label class="field">
-                <span class="field-label">Date de fin</span>
-                <DateInput v-model="draft.end" :min="draft.start" :disabled="draft.removed" />
-              </label>
-              <label class="field">
-                <span class="field-label">Localisation</span>
-                <input
-                  v-model="draft.location"
-                  class="input"
-                  maxlength="128"
-                  :disabled="draft.removed"
-                />
-              </label>
-              <button
-                type="button"
-                class="icon-btn delete"
-                :aria-label="draft.removed ? 'Annuler la suppression' : 'Supprimer ce séjour'"
-                :title="draft.removed ? 'Annuler la suppression' : 'Supprimer ce séjour'"
-                @click="draft.removed = !draft.removed"
-              >
-                <AppIcon :name="draft.removed ? 'x' : 'trash'" :size="20" />
-              </button>
-            </div>
-          </template>
+            <button type="button" class="btn btn-small" @click="emit('edit-stay', stay)">
+              <AppIcon name="pencil" :size="14" />
+              Modifier
+            </button>
+          </div>
+          <p v-if="!stays.length" class="muted">Ce patient n’a aucun séjour.</p>
 
           <button type="button" class="add-stay" @click="emit('add-stay', patient)">
             <AppIcon name="plus" :size="16" />
             Ajouter un séjour
           </button>
+        </div>
+      </section>
+
+      <section class="card">
+        <div class="card-header with-action">
+          <div>
+            <h2 class="card-title">Informations des soins</h2>
+            <p v-if="!careError" class="card-description">
+              {{ countLabel(appointments.length, 'soin') }}
+            </p>
+          </div>
+          <button type="button" class="btn btn-primary" @click="emit('plan-care', patient)">
+            <AppIcon name="plus" :size="16" />
+            Planifier un soin
+          </button>
+        </div>
+
+        <div class="card-body">
+          <div v-if="careError" class="notice notice-error" role="alert">
+            <AppIcon name="alert-circle" :size="16" />
+            <span>{{ careError }}</span>
+            <button type="button" class="btn btn-small retry" @click="loadCare">Réessayer</button>
+          </div>
+          <table v-else-if="appointments.length" class="table care-table">
+            <thead>
+              <tr>
+                <th>Date et heure</th>
+                <th>Type de soin</th>
+                <th>Soignant(s) en charge</th>
+                <th>Statut</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr
+                v-for="a in appointments"
+                :key="a.id"
+                title="Modifier le soin"
+                @click="emit('open-care', a)"
+              >
+                <td>{{ careWhen(a) }}</td>
+                <td class="care-type">{{ a.care_type }}</td>
+                <td :class="{ 'not-set': !a.performers.length }">
+                  {{ a.performers.map(practitionerName).join(', ') || NOT_SET }}
+                </td>
+                <td>
+                  <span v-if="isLateCare(a)" class="status late">En retard</span>
+                  <span v-else class="status" :class="a.status.toLowerCase()">
+                    {{ labelOf(CARE_STATUSES, a.status) }}
+                  </span>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+          <p v-else class="muted">Aucun soin n’est planifié pour ce patient.</p>
         </div>
       </section>
     </template>
@@ -369,36 +309,52 @@ dd {
 }
 
 .stay {
-  display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  display: flex;
+  align-items: center;
   gap: 24px;
-  margin: 0;
   padding-bottom: 16px;
   border-bottom: 1px solid var(--color-border);
 }
 
-.stay-row {
+.stay dl {
   display: grid;
-  grid-template-columns: 1fr 1fr 1.4fr 40px;
-  align-items: end;
-  gap: 20px;
+  flex: 1;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 24px;
+  margin: 0;
 }
 
-.stay-row.removed .field {
-  opacity: 0.45;
+.care-table td {
+  height: 52px;
 }
 
-.icon-btn {
-  display: grid;
-  place-items: center;
-  height: 44px;
-  border: none;
-  background: transparent;
-  cursor: pointer;
+.care-type {
+  font-weight: 600;
 }
 
-.delete {
-  color: var(--color-danger);
+.status {
+  padding: 2px 8px;
+  border-radius: 10px;
+  background: var(--color-primary-soft);
+  color: var(--color-primary);
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.status.done {
+  background: var(--color-success-soft);
+  color: var(--color-success);
+}
+
+.status.cancelled {
+  background: var(--color-surface-muted);
+  color: var(--color-text-muted);
+}
+
+.status.late {
+  background: var(--color-warning-soft);
+  color: var(--color-warning);
 }
 
 .add-stay {

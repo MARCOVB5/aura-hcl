@@ -1,23 +1,27 @@
 import datetime
 
-from pydantic import BaseModel, ConfigDict, model_validator
+from typing import Annotated
+
+from pydantic import BaseModel, ConfigDict, NaiveDatetime, StringConstraints, model_validator
 
 from app.models.care import AppointmentStatus, TimeConstraint
 from app.schemas.Encounter import EncounterSummaryOut
 from app.schemas.Patient import PatientOut
-from app.schemas.Reference import CareTypeOut, PractitionerOut
+from app.schemas.Reference import PractitionerOut
 
 
 class AppointmentUpdate(BaseModel):
   model_config = ConfigDict(extra="forbid")
 
-  activity_definition_id: int
+  # the kind of care, typed freely (e.g. "Prise de sang"); spaces around are removed
+  care_type: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=255)]
   prescribed_on: datetime.date
   time_constraint: TimeConstraint
+  # local times, like the database: a date with a time zone is refused (422)
   # STRONG: the precise time. WEAK: the start of the time window
-  scheduled_start: datetime.datetime
+  scheduled_start: NaiveDatetime
   # WEAK only: the end of the time window
-  scheduled_end: datetime.datetime | None = None
+  scheduled_end: NaiveDatetime | None = None
   performer_ids: list[int] = []  # caregivers in charge
   validated_by_id: int | None = None  # caregiver who validated the prescription
   note: str | None = None
@@ -46,7 +50,7 @@ class AppointmentOut(BaseModel):
   id: int
   patient: PatientOut
   encounter: EncounterSummaryOut
-  activity_definition: CareTypeOut
+  care_type: str
   prescribed_on: datetime.date
   time_constraint: TimeConstraint
   scheduled_start: datetime.datetime
