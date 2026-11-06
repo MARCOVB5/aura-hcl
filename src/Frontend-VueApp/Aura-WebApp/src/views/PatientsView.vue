@@ -122,6 +122,14 @@ const countLabel = computed(() => {
                 }}</span>
                 <span v-else class="patient-name muted"><em>Patient sous X</em></span>
               </button>
+              <button
+                type="button"
+                class="btn btn-small open-record"
+                @click.stop="emit('open', patient)"
+              >
+                <AppIcon name="eye" :size="14" />
+                Voir la fiche
+              </button>
             </div>
           </td>
           <td class="col-id muted">{{ patient.ipp || 'Non renseigné' }}</td>
@@ -216,5 +224,11 @@ const countLabel = computed(() => {
 .patient-link:hover .patient-name {
   color: var(--color-primary);
   text-decoration: underline;
+}
+
+/* on the right of the patient column, apart from the buttons that change the patient */
+.open-record {
+  margin-left: auto;
+  white-space: nowrap;
 }
 </style>

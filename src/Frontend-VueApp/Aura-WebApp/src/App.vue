@@ -22,7 +22,9 @@ import { endSession, session, startSession } from './session.js'
 //   Admission:  admission, admission-patient-form, stay-form, stay-created
 //   Calendrier: calendar, care-form, care-created
 // The stay and care forms also open from the patient pages: they then stay in that section.
-const page = ref({ name: 'patients' })
+// The first page after login is the calendar.
+const HOME = 'calendar'
+const page = ref({ name: HOME })
 const go = (name, params = {}) => (page.value = { name, ...params })
 
 // shared between pages
@@ -60,7 +62,7 @@ function resetState() {
   selectedPatient.value = null
   calendar.value = { service: true, mine: true, onlySelectedPatient: false }
   admissionCriteria.value = {}
-  go('patients')
+  go(HOME)
 }
 
 function logout() {

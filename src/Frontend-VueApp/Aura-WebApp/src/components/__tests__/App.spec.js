@@ -20,10 +20,22 @@ const PATIENTS = [
   },
 ]
 
+// answers every request with body, except the calendar's care: none
 function mockFetch(body, ok = true) {
-  globalThis.fetch = vi
-    .fn()
-    .mockResolvedValue({ ok, status: ok ? 200 : 500, json: async () => body })
+  globalThis.fetch = vi.fn(async (url) => ({
+    ok,
+    status: ok ? 200 : 500,
+    json: async () => (url.includes('/api/appointments') ? [] : body),
+  }))
+}
+
+const navItem = (wrapper, label) =>
+  wrapper.findAll('aside .nav-item').find((b) => b.text().includes(label))
+
+// the app opens on the calendar
+async function openPatients(wrapper) {
+  await navItem(wrapper, 'Patients').trigger('click')
+  await flushPromises()
 }
 
 const ME = {
@@ -49,10 +61,24 @@ afterEach(() => {
   vi.restoreAllMocks()
 })
 
-it('opens on the patient list, loaded from the API', async () => {
+it('opens on the calendar', async () => {
   mockFetch(PATIENTS)
   const wrapper = mount(App)
   await flushPromises()
+
+  expect(wrapper.find('.month-title').exists()).toBe(true)
+  expect(wrapper.get('aside .active').text()).toContain('Calendrier')
+  expect(fetch).toHaveBeenCalledWith(
+    expect.stringContaining('/api/appointments?'),
+    expect.any(Object),
+  )
+})
+
+it('shows the patient list, loaded from the API', async () => {
+  mockFetch(PATIENTS)
+  const wrapper = mount(App)
+  await flushPromises()
+  await openPatients(wrapper)
 
   expect(wrapper.get('h1').text()).toBe('Patients')
   expect(fetch).toHaveBeenCalledWith(
@@ -71,6 +97,7 @@ it('filters the list with the search box', async () => {
   mockFetch(PATIENTS)
   const wrapper = mount(App)
   await flushPromises()
+  await openPatients(wrapper)
 
   await wrapper.get('input[type="search"]').setValue('benoît')
   expect(wrapper.findAll('tbody tr')).toHaveLength(1)
@@ -81,6 +108,7 @@ it('shows the selected patient in the sidebar', async () => {
   mockFetch(PATIENTS)
   const wrapper = mount(App)
   await flushPromises()
+  await openPatients(wrapper)
 
   await wrapper.findAll('tbody tr')[0].trigger('click')
   expect(wrapper.get('aside').text()).toContain('Camille Benoit')
@@ -98,6 +126,7 @@ it('opens the create form from the list', async () => {
   mockFetch(PATIENTS)
   const wrapper = mount(App)
   await flushPromises()
+  await openPatients(wrapper)
 
   await wrapper.get('.btn-create').trigger('click')
   expect(wrapper.get('h1').text()).toBe('Créer un patient')
@@ -109,6 +138,23 @@ const rowButton = (wrapper, text) =>
     .findAll('tbody tr')[0]
     .findAll('button')
     .find((b) => b.text() === text)
+
+it('opens the patient record with Voir la fiche', async () => {
+  mockApi([
+    ['GET', /\/api\/patients\?/, 200, PATIENTS],
+    ['GET', /\/api\/patients\/1$/, 200, CAMILLE],
+    ['GET', /\/api\/patients\/1\/hospitalizations$/, 200, []],
+    ['GET', /\/api\/appointments\?/, 200, []],
+  ])
+  const wrapper = mount(App)
+  await flushPromises()
+  await openPatients(wrapper)
+
+  await rowButton(wrapper, 'Voir la fiche').trigger('click')
+  await flushPromises()
+  expect(wrapper.get('h1').text()).toBe('Camille Benoit')
+  expect(wrapper.get('aside .active').text()).toContain('Patients')
+})
 
 it('opens the only stay of the patient from Modifier le séjour, and comes back', async () => {
   mockApi([
@@ -124,6 +170,7 @@ it('opens the only stay of the patient from Modifier le séjour, and comes back'
   ])
   const wrapper = mount(App)
   await flushPromises()
+  await openPatients(wrapper)
 
   await rowButton(wrapper, 'Modifier le séjour').trigger('click')
   await flushPromises()
@@ -151,6 +198,7 @@ it('opens the stays of the record when the patient has several', async () => {
   ])
   const wrapper = mount(App)
   await flushPromises()
+  await openPatients(wrapper)
 
   await rowButton(wrapper, 'Modifier le séjour').trigger('click')
   await flushPromises()
@@ -161,6 +209,7 @@ it('opens the stays of the record when the patient has several', async () => {
 it('plans a care from the patient list, and comes back to the list', async () => {
   mockApi([
     ['GET', /\/api\/patients\?/, 200, PATIENTS],
+    ['GET', /\/api\/appointments\?/, 200, []],
     ['GET', /\/api\/practitioners$/, 200, []],
     [
       'GET',
@@ -171,6 +220,7 @@ it('plans a care from the patient list, and comes back to the list', async () =>
   ])
   const wrapper = mount(App)
   await flushPromises()
+  await openPatients(wrapper)
 
   await rowButton(wrapper, 'Planifier un soin').trigger('click')
   await flushPromises()
@@ -203,7 +253,7 @@ it('asks to log in first, then opens the app', async () => {
   mockApi([
     ['POST', /\/api\/auth\/login$/, 200, { access_token: 'new-token', token_type: 'bearer' }],
     ['GET', /\/api\/auth\/me$/, 200, ME],
-    ['GET', /\/api\/patients\?/, 200, PATIENTS],
+    ['GET', /\/api\/appointments\?/, 200, []],
   ])
   const wrapper = mount(App)
   await flushPromises()
@@ -227,7 +277,7 @@ it('asks to log in first, then opens the app', async () => {
   // who the new token belongs to
   expect(fetch.mock.calls[1][1].headers.Authorization).toBe('Bearer new-token')
 
-  expect(wrapper.get('h1').text()).toBe('Patients')
+  expect(wrapper.get('aside .active').text()).toContain('Calendrier')
   expect(localStorage.getItem('aura.token')).toBe('new-token')
 })
 
@@ -271,17 +321,17 @@ it('keeps the user logged in after a reload, with the saved token', async () => 
   session.token = 'saved-token' // what session.js reads when the page loads
   mockApi([
     ['GET', /\/api\/auth\/me$/, 200, ME],
-    ['GET', /\/api\/patients\?/, 200, PATIENTS],
+    ['GET', /\/api\/appointments\?/, 200, []],
   ])
   const wrapper = mount(App)
   await flushPromises()
 
   expect(fetch.mock.calls[0][1].headers.Authorization).toBe('Bearer saved-token')
-  expect(wrapper.get('h1').text()).toBe('Patients')
+  expect(wrapper.get('aside .active').text()).toContain('Calendrier')
 })
 
 it('goes back to the login page when the token has expired', async () => {
-  mockApi([['GET', /\/api\/patients\?/, 401, { detail: 'Invalid credentials or session' }]])
+  mockApi([['GET', /\/api\/appointments\?/, 401, { detail: 'Invalid credentials or session' }]])
   const wrapper = mount(App)
   await flushPromises()
 
@@ -297,6 +347,7 @@ it('starts from scratch when someone else logs in after the session expired', as
   ])
   const wrapper = mount(App)
   await flushPromises()
+  await openPatients(wrapper)
   await wrapper.findAll('tbody tr')[0].trigger('click')
   await flushPromises()
   expect(wrapper.get('aside').text()).toContain('Camille Benoit')
@@ -313,6 +364,7 @@ it('starts from scratch when someone else logs in after the session expired', as
   startSession('token-3', { ...ME, id: 2, username: 'demo.infirmier', practitioner_id: 2 })
   await flushPromises()
   expect(wrapper.get('aside').text()).not.toContain('Camille Benoit')
+  expect(wrapper.get('aside .active').text()).toContain('Calendrier')
 })
 
 it('keeps the new session when a request sent before it fails with a 401', async () => {
@@ -348,6 +400,7 @@ it('logs out with Déconnexion', async () => {
 it('stays on the page the user went to while Modifier le séjour was loading', async () => {
   const api = mockApi([
     ['GET', /\/api\/patients\?/, 200, PATIENTS],
+    ['GET', /\/api\/appointments\?/, 200, []],
     [
       'GET',
       /\/api\/patients\/1\/hospitalizations$/,
@@ -364,12 +417,10 @@ it('stays on the page the user went to while Modifier le séjour was loading', a
   })
   const wrapper = mount(App)
   await flushPromises()
+  await openPatients(wrapper)
 
   await rowButton(wrapper, 'Modifier le séjour').trigger('click')
-  await wrapper
-    .findAll('aside .nav-item')
-    .find((b) => b.text().includes('Calendrier'))
-    .trigger('click')
+  await navItem(wrapper, 'Calendrier').trigger('click')
   answer()
   await flushPromises()
 
@@ -385,6 +436,7 @@ it('comes back to the patient list from a late care opened in the sidebar', asyn
   ])
   const wrapper = mount(App)
   await flushPromises()
+  await openPatients(wrapper)
   await wrapper.findAll('tbody tr')[0].trigger('click')
   await flushPromises()
 
@@ -417,6 +469,7 @@ it('shows the selected patient as they are now when the list is loaded again', a
   ])
   const wrapper = mount(App)
   await flushPromises()
+  await openPatients(wrapper)
 
   await wrapper.findAll('tbody tr')[0].trigger('click')
   await flushPromises()
