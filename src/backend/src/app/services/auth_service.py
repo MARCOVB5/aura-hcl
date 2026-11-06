@@ -1,3 +1,4 @@
+"""Authenticate practitioners, provision user accounts, and seed demo staff."""
 from fastapi import HTTPException
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
@@ -19,11 +20,28 @@ def unauthorized() -> HTTPException:
 
 
 class AuthService:
+    """Handle practitioner login verification and user account creation."""
+
     def __init__(self, db: Session, users: UserDAO):
         self.db = db
         self.users = users
 
     def login(self, username: str, password: str) -> str:
+        """Verify credentials and issue a signed JWT access token for an active practitioner.
+
+        Verify against `DUMMY_HASH` when `username` is unknown to equalize
+        response timing across existing and non-existing accounts.
+
+        Args:
+            username (str): Normalized practitioner username.
+            password (str): Plain-text password to verify.
+
+        Returns:
+            str: Signed JWT access token encoding the authenticated `User.id`.
+
+        Raises:
+            HTTPException: If credentials are invalid or the linked practitioner is inactive (401).
+        """
         user = self.users.get_by_username(username)
         valid = verify_password(password, user.password_hash if user else DUMMY_HASH)
         if not valid or user is None or not user.practitioner.active:
@@ -31,6 +49,21 @@ class AuthService:
         return create_access_token(user.id)
 
     def create_user(self, practitioner_id: int, username: str, password: str) -> User:
+        """Provision a login account for an existing active practitioner.
+
+        Args:
+            practitioner_id (int): Primary key of the target `Practitioner`.
+            username (str): Desired login identifier (trimmed and lowercased via `LoginRequest`).
+            password (str): Plain-text password to hash with Argon2.
+
+        Returns:
+            User: Newly created and committed `User` account.
+
+        Raises:
+            ValidationError: If `username` or `password` fails `LoginRequest` constraints.
+            NotFound: If `practitioner_id` does not exist.
+            Conflict: If the practitioner is inactive or either the username or practitioner already has an account.
+        """
         credentials = LoginRequest(username=username, password=password)
         try:
             practitioner = self.db.get(Practitioner, practitioner_id)
@@ -61,7 +94,18 @@ DEMO_PRACTITIONERS = (
 
 
 def populate_demo_practitioners(db: Session, password: str) -> list[tuple[str, int]]:
-    """Create demo staff atomically; matching accounts are left untouched."""
+    """Create demo staff atomically and leave matching existing accounts untouched.
+
+    Args:
+        db (Session): Active SQLAlchemy session.
+        password (str): Shared plain-text password to hash for newly created demo accounts.
+
+    Returns:
+        list[tuple[str, int]]: Pairs of `(username, practitioner_id)` for each demo account.
+
+    Raises:
+        ValueError: If `password` is empty or an existing demo username has mismatched profile fields.
+    """
     if not password:
         raise ValueError("Password must not be empty")
     users = UserDAO(db)

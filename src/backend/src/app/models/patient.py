@@ -1,3 +1,12 @@
+"""Define the patient clinical record model and identification states.
+
+`Patient` links a demographic `Person` record to hospital-specific identifiers
+(`ipp`, nullable for `PROVISIONAL` or `UNKNOWN` admissions) and clinical notes.
+`Patient.allergies` is a read-only (`viewonly=True`) filtered view over
+`Patient.pathologies` where `pathology_type_code == 'ALLERGY'`; all allergy
+mutations must be applied to `Patient.pathologies` followed by refreshing
+`allergies`.
+"""
 from __future__ import annotations
 
 from typing import TYPE_CHECKING
@@ -14,10 +23,6 @@ import enum
 if TYPE_CHECKING:
   from app.models.person import Person
   from app.models.pathology import Pathology, Allergen
-
-'''
-Enumeration / DataType classes for the Patient & Stay group
-'''
 
 class IdentificationStatus(enum.Enum):
   IDENTIFIED = "IDENTIFIED"
@@ -59,6 +64,10 @@ class Patient(Base):
 
   @property
   def contact(self) -> str | None:
-    """The patient's phone number, stored in the person's telecom list"""
+    """Return the primary phone number from the patient's telecom list.
+
+    Returns:
+      str | None: First `PHONE` contact value on `person.telecom`, or `None`.
+    """
     phones = [t.value for t in self.person.telecom if t.system == ContactPointSystem.PHONE]
     return phones[0] if phones else None

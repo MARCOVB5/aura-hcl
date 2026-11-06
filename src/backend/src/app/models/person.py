@@ -1,3 +1,11 @@
+"""Define demographic and contact-point models shared by patients and staff.
+
+`Person` decouples identity and demographic attributes from clinical or staff
+roles (`Patient`, `Practitioner`). All demographic columns on `Person` are
+nullable to allow emergency or anonymous admissions (`IdentificationStatus.UNKNOWN`
+or `PROVISIONAL`). `ContactPoint` rows in `person_telecom` are owned by `Person`
+with `delete-orphan` cascade.
+"""
 from __future__ import annotations
 
 import datetime
@@ -8,10 +16,6 @@ from sqlalchemy import String, Enum, ForeignKey, Date
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 import enum
-
-'''
-Enumeration / DataType classes for the Person group
-'''
 
 class ContactPointSystem(enum.Enum):
   PHONE = "PHONE"

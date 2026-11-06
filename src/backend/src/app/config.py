@@ -1,3 +1,4 @@
+"""Load and validate backend runtime settings from `src/backend/.env`."""
 from pathlib import Path
 from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -6,6 +7,8 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 ENV_FILE = Path(__file__).resolve().parents[2] / ".env"
 
 class Settings(BaseSettings):
+  """Validate environment variables for JWT signing, database connectivity, and CORS."""
+
   model_config = SettingsConfigDict(env_file = ENV_FILE)
 
   jwt_secret: str = Field(min_length=32)

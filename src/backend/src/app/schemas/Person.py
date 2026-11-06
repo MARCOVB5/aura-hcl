@@ -1,3 +1,9 @@
+"""Define demographic payload schemas coupled to `models.person.Person` attributes.
+
+Field names on `PersonCreate` mirror `Person` ORM attributes so services can
+instantiate `Person(**data.model_dump())`. All demographic inputs are optional
+to allow anonymous or emergency admissions.
+"""
 import datetime
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator

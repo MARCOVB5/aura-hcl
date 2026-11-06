@@ -1,3 +1,13 @@
+"""Define care appointment models, time constraints, and performer associations.
+
+`Appointment` represents a scheduled care action attached to a `Patient` and the
+active `Encounter` at planning time. Caregivers are linked in two distinct roles:
+`validated_by` (the single `Practitioner` who validated the prescription) and
+`performers` (many-to-many via `appointment_performer`, ordered by
+`Practitioner.id`). `TimeConstraint` distinguishes single-timestamp care
+(`STRONG`, using `scheduled_start` only) from interval care (`WEAK`, spanning
+`scheduled_start` to `scheduled_end`).
+"""
 from __future__ import annotations
 
 import datetime
@@ -14,10 +24,6 @@ if TYPE_CHECKING:
   from app.models.encounter import Encounter
   from app.models.patient import Patient
   from app.models.practitioner import Practitioner
-
-'''
-Care planning: the care appointments scheduled for a patient during a stay
-'''
 
 class TimeConstraint(enum.Enum):
   WEAK = "WEAK"     # to do within a time window: scheduled_start -> scheduled_end
@@ -40,7 +46,6 @@ appointment_performer = Table(
 
 
 class Appointment(Base):
-  """A care appointment: one care to do for a patient, during one of their stays"""
   __tablename__ = "appointment"
 
   id : Mapped[int] = mapped_column(ID, primary_key=True, autoincrement=True)

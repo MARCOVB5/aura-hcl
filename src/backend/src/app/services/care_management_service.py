@@ -1,3 +1,4 @@
+"""Schedule and update patient care appointments within active hospital stays."""
 import datetime
 
 from sqlalchemy.orm import Session
@@ -14,7 +15,7 @@ from app.schemas.Care import AppointmentCreate, AppointmentUpdate
 
 
 class CareManagementService:
-  """Care appointments, and the list of caregivers the care form needs"""
+  """Manage care appointments and caregiver reference lists within hospital stays."""
 
   def __init__(
     self,
@@ -52,9 +53,18 @@ class CareManagementService:
     return appointment
 
   def _apply(self, appointment: Appointment, data: AppointmentUpdate) -> None:
-    """Copies the form's fields onto the appointment, after checking the ids it refers to.
-    Related objects are assigned (not only their ids): the session keeps loaded objects
-    after a commit (expire_on_commit=False), so a changed id alone would leave them stale."""
+    """Copy validated form fields and resolved practitioner objects onto `appointment`.
+
+    Assign related `Practitioner` ORM instances (not only foreign-key IDs) because
+    `expire_on_commit=False` keeps loaded objects in memory after commit.
+
+    Args:
+      appointment (Appointment): Target appointment instance to mutate.
+      data (AppointmentUpdate): Validated care appointment fields and practitioner IDs.
+
+    Raises:
+      NotFound: If any ID in `performer_ids` or `validated_by_id` does not exist.
+    """
     performers = self.references.get_practitioners(data.performer_ids)
     if len(performers) != len(set(data.performer_ids)):
       raise NotFound("Practitioner not found")
@@ -77,8 +87,18 @@ class CareManagementService:
 
   @staticmethod
   def _check_within_stay(data: AppointmentUpdate, encounter: Encounter) -> None:
-    """A care takes place during its stay: from the admission to the discharge, if there is one
-    (the expected discharge is only a forecast: it does not limit the care)"""
+    """Validate that the appointment time window falls within the stay's actual bounds.
+
+    `expected_discharge_date` is only a forecast and does not constrain care;
+    only `admission_date` and `actual_discharge_date` (when set) bound the care.
+
+    Args:
+      data (AppointmentUpdate): Appointment payload containing `scheduled_start` and `scheduled_end`.
+      encounter (Encounter): Stay to validate the appointment timestamps against.
+
+    Raises:
+      AppError: If the appointment starts before `admission_date` or ends after `actual_discharge_date`.
+    """
     last = data.scheduled_end or data.scheduled_start
     if data.scheduled_start < encounter.admission_date:
       raise AppError("Care outside its stay")
@@ -86,6 +106,19 @@ class CareManagementService:
       raise AppError("Care outside its stay")
 
   def create_appointment(self, data: AppointmentCreate) -> Appointment:
+    """Create a care appointment attached to the patient's current active stay.
+
+    Args:
+      data (AppointmentCreate): Validated care creation payload including `patient_id`.
+
+    Returns:
+      Appointment: Persisted `Appointment` with eager-loaded relationships.
+
+    Raises:
+      NotFound: If the patient or any referenced practitioner does not exist.
+      Conflict: If the patient has no active stay in progress.
+      AppError: If the scheduled time falls outside the active stay's dates.
+    """
     if self.patients.get(data.patient_id) is None:
       raise NotFound("Patient not found")
     # a care is always attached to the stay in progress: no stay, no care
@@ -101,6 +134,19 @@ class CareManagementService:
     return self.get_appointment(appointment.id)
 
   def update_appointment(self, appointment_id: int, data: AppointmentUpdate) -> Appointment:
+    """Replace all editable fields and practitioner assignments on a care appointment.
+
+    Args:
+      appointment_id (int): Primary key of the appointment to update.
+      data (AppointmentUpdate): Replacement fields and practitioner IDs.
+
+    Returns:
+      Appointment: Updated `Appointment` with eager-loaded relationships.
+
+    Raises:
+      NotFound: If the appointment or any referenced practitioner does not exist.
+      AppError: If the updated schedule falls outside the appointment's bound stay.
+    """
     appointment = self.get_appointment(appointment_id)
     self._check_within_stay(data, appointment.encounter)
     self._apply(appointment, data)

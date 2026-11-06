@@ -1,3 +1,10 @@
+"""Define the healthcare practitioner model linked to demographic records.
+
+`Practitioner` pairs a `Person` identity record with clinical staff attributes
+(`profession`, `active`). Setting `active` to `False` revokes authentication for
+any linked `User` account and excludes the practitioner from care-planning
+dropdown lists while preserving historical care references.
+"""
 from __future__ import annotations
 
 from typing import TYPE_CHECKING

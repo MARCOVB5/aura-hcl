@@ -1,3 +1,4 @@
+"""Define care appointment creation, update, and output schemas."""
 import datetime
 
 from typing import Annotated
@@ -11,6 +12,8 @@ from app.schemas.Reference import PractitionerOut
 
 
 class AppointmentUpdate(BaseModel):
+  """Validate editable care appointment fields and enforce `STRONG`/`WEAK` time-window rules."""
+
   model_config = ConfigDict(extra="forbid")
 
   # the kind of care, typed freely (e.g. "Prise de sang"); spaces around are removed
@@ -40,6 +43,8 @@ class AppointmentUpdate(BaseModel):
 
 
 class AppointmentCreate(AppointmentUpdate):
+  """Extend `AppointmentUpdate` with `patient_id` while resolving the active stay automatically."""
+
   # the patient's current stay is attached automatically
   patient_id: int
 

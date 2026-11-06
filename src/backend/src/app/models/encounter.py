@@ -1,3 +1,10 @@
+"""Define the clinical encounter (hospital stay) model and status enumerations.
+
+`Encounter` represents a patient's hospital visit identified externally by a
+unique `stay_number`, tracking admission and discharge timestamps, free-text
+location, and clinical lifecycle state (`EncounterStatus`). Deleting an
+`Encounter` cascades to its 1-to-0..1 `Hospitalization` record.
+"""
 from __future__ import annotations
 
 import enum

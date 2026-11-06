@@ -1,3 +1,9 @@
+"""Define clinical encounter creation, partial-update, and output schemas.
+
+Timestamps use `NaiveDatetime` (rejecting timezone-aware values with HTTP 422)
+to match local hospital datetimes in MariaDB. `LocationText` strips whitespace
+and normalizes blank strings to `None`.
+"""
 from datetime import datetime
 from typing import Annotated
 
@@ -29,7 +35,7 @@ class EncounterCreate(BaseModel):
 
 
 class EncounterUpdate(BaseModel):
-  """Only the fields that are sent are changed (send null to clear an optional field)"""
+  """Apply partial (`PATCH`) updates to an encounter; send `null` to clear optional fields."""
   model_config = ConfigDict(extra="forbid")
 
   stay_number: str | None = Field(default=None, min_length=1, max_length=32)
@@ -43,7 +49,7 @@ class EncounterUpdate(BaseModel):
 
 
 class EncounterSummaryOut(BaseModel):
-  """A stay without its patient, e.g. inside a care appointment"""
+  """Serialize an encounter without its nested `patient` for embedding in `AppointmentOut`."""
   model_config = ConfigDict(from_attributes=True)
 
   id: int
