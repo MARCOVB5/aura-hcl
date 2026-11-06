@@ -1,3 +1,4 @@
+"""Provide database queries and flush-only persistence for clinical `Encounter` stays."""
 from datetime import datetime
 
 from sqlalchemy import or_, select
@@ -10,6 +11,11 @@ CLOSED_STATUSES = (EncounterStatus.FINISHED, EncounterStatus.CANCELLED, Encounte
 
 
 class EncounterDAO:
+  """Query and persist `Encounter` records, including active-stay resolution.
+
+  Mutating methods flush changes to the session without committing so the calling
+  service owns the transaction boundary.
+  """
 
   def __init__(self, session: Session):
     self.session = session
@@ -22,7 +28,18 @@ class EncounterDAO:
     return self.session.scalar(stmt)
 
   def get_current(self, patient_id: int, now: datetime) -> Encounter | None:
-    """The patient's stay in progress: started, not discharged, not closed (latest first)"""
+    """Return the patient's most recently admitted active stay in progress at `now`.
+
+    Exclude stays in `CLOSED_STATUSES`, stays whose `admission_date` is after
+    `now`, and stays whose `actual_discharge_date` is at or before `now`.
+
+    Args:
+      patient_id (int): Primary key of the patient.
+      now (datetime): Reference timestamp used to evaluate admission and discharge bounds.
+
+    Returns:
+      Encounter | None: Latest active `Encounter` for the patient, or `None`.
+    """
     stmt = (
       select(Encounter)
       .where(

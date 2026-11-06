@@ -1,3 +1,4 @@
+"""Provide queries, stay-window checks, and persistence for care `Appointment` records."""
 import datetime
 
 from sqlalchemy import func, or_, select
@@ -17,6 +18,7 @@ _DETAIL_OPTIONS = (
 
 
 class AppointmentDAO:
+  """Query and persist care `Appointment` records with full patient, stay, and caregiver graphs."""
 
   def __init__(self, session: Session):
     self.session = session
@@ -31,6 +33,19 @@ class AppointmentDAO:
     end: datetime.date | None = None,
     patient_id: int | None = None,
   ) -> list[Appointment]:
+    """Search appointments within an inclusive calendar-day range and optional patient filter.
+
+    Convert `end` into a strict upper bound at `00:00:00` on `end + 1 day` so all
+    appointments scheduled anywhere on the `end` calendar day are included.
+
+    Args:
+      start (datetime.date | None): Inclusive lower-bound date for `scheduled_start`.
+      end (datetime.date | None): Inclusive upper-bound date for `scheduled_start`.
+      patient_id (int | None): Optional patient primary key filter.
+
+    Returns:
+      list[Appointment]: Matching eager-loaded appointments ordered by `(scheduled_start, id)`.
+    """
     stmt = select(Appointment).options(*_DETAIL_OPTIONS)
     if start is not None:
       stmt = stmt.where(Appointment.scheduled_start >= datetime.datetime.combine(start, datetime.time.min))
@@ -52,7 +67,16 @@ class AppointmentDAO:
     start: datetime.datetime,
     end: datetime.datetime | None,
   ) -> bool:
-    """Whether a care of the stay starts before start, or ends after end (when end is set)"""
+    """Check whether any care appointment of the stay falls outside `[start, end]`.
+
+    Args:
+      encounter_id (int): Primary key of the encounter.
+      start (datetime.datetime): Stay admission timestamp (`scheduled_start` must not precede this).
+      end (datetime.datetime | None): Actual discharge timestamp, or `None` if not yet discharged.
+
+    Returns:
+      bool: `True` if at least one appointment starts before `start` or ends after `end`.
+    """
     outside = Appointment.scheduled_start < start
     if end is not None:
       last = func.coalesce(Appointment.scheduled_end, Appointment.scheduled_start)

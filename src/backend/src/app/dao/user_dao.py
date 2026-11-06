@@ -1,3 +1,4 @@
+"""Provide database lookups and flush-only creation for `User` authentication accounts."""
 from sqlalchemy import select
 from sqlalchemy.orm import Session, joinedload
 
@@ -6,6 +7,8 @@ from app.models.user import User
 
 
 class UserDAO:
+    """Query and persist `User` accounts with joined `Practitioner` and `Person` profiles."""
+
     def __init__(self, db: Session):
         self.db = db
 

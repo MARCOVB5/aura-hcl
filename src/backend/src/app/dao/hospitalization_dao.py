@@ -1,3 +1,4 @@
+"""Provide eager-loaded queries and persistence for `Hospitalization` records."""
 from sqlalchemy import select
 from sqlalchemy.orm import Session, selectinload
 
@@ -13,6 +14,11 @@ _DETAIL_OPTIONS = (
 
 
 class HospitalizationDAO:
+  """Query and persist `Hospitalization` entities keyed by `encounter_id`.
+
+  All read methods eager-load `encounter` and the nested `patient` graph
+  (`PATIENT_OPTIONS`) to satisfy `HospitalizationOut` serialization without N+1 queries.
+  """
 
   def __init__(self, session: Session):
     self.session = session

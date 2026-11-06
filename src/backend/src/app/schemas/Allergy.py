@@ -1,3 +1,8 @@
+"""Define request and response schemas for patient allergies.
+
+`AllergyName` strips surrounding whitespace and enforces 1–255 characters so
+blank strings are rejected before persisting `Pathology` rows.
+"""
 from typing import Annotated
 from pydantic import BaseModel, ConfigDict, Field, StringConstraints
 

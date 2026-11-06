@@ -1,3 +1,4 @@
+"""Define output schemas for practitioner reference lists used by care forms."""
 from pydantic import BaseModel, ConfigDict
 
 from app.schemas.Person import PersonOut

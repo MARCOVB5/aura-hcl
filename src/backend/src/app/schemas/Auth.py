@@ -1,7 +1,10 @@
+"""Define authentication request, bearer token, and current-user profile schemas."""
 from pydantic import BaseModel, Field, field_validator
 
 
 class LoginRequest(BaseModel):
+    """Validate and normalize practitioner login credentials."""
+
     username: str = Field(min_length=1, max_length=64)
     password: str = Field(min_length=1)
 
@@ -21,6 +24,8 @@ class TokenOut(BaseModel):
 
 
 class CurrentUserOut(BaseModel):
+    """Flatten `User`, `Practitioner`, and `Person` fields for `/api/auth/me`."""
+
     id: int
     username: str
     practitioner_id: int

@@ -1,3 +1,4 @@
+"""Manage hospital stays (`Encounter` and `Hospitalization`) and stay-date invariants."""
 from datetime import datetime
 
 from sqlalchemy.exc import IntegrityError
@@ -15,6 +16,7 @@ from app.schemas.Hospitalization import HospitalizationCreate
 
 
 class HospitalizationManagementService:
+  """Coordinate creation, partial updates, queries, and deletion of hospitalizations."""
 
   def __init__(
     self,
@@ -31,6 +33,19 @@ class HospitalizationManagementService:
     self.appointments = appointments
 
   def create_hospitalization(self, data: HospitalizationCreate) -> Hospitalization:
+    """Create an `Encounter` and its 1-to-1 `Hospitalization` in a single transaction.
+
+    Args:
+      data (HospitalizationCreate): Nested encounter creation payload.
+
+    Returns:
+      Hospitalization: Newly persisted `Hospitalization` keyed by `encounter.id`.
+
+    Raises:
+      NotFound: If `data.encounter.patient_id` does not exist.
+      AppError: If `expected_discharge_date` precedes `admission_date`.
+      Conflict: If `data.encounter.stay_number` is already registered.
+    """
     patient = self.patients.get(data.encounter.patient_id)
     if patient is None:
       raise NotFound("Patient not found")
@@ -73,7 +88,17 @@ class HospitalizationManagementService:
     return self.hospitalizations.get_by_patient(patient_id)
 
   def get_current_hospitalization(self, patient_id: int) -> Hospitalization:
-    """The stay in progress, to which new care appointments are attached"""
+    """Return the patient's active stay in progress to which new care is attached.
+
+    Args:
+      patient_id (int): Primary key of the patient.
+
+    Returns:
+      Hospitalization: Active `Hospitalization` for the patient.
+
+    Raises:
+      NotFound: If the patient does not exist or has no active stay in progress.
+    """
     if self.patients.get(patient_id) is None:
       raise NotFound("Patient not found")
     encounter = self.encounters.get_current(patient_id, datetime.now())
@@ -82,6 +107,24 @@ class HospitalizationManagementService:
     return self.get_hospitalization(encounter.id)
 
   def update_hospitalization(self, encounter_id: int, data: EncounterUpdate) -> Hospitalization:
+    """Apply partial (`PATCH`) updates to a hospitalization's underlying `Encounter`.
+
+    Verify that required columns are not set to `None`, discharge dates do not
+    precede `admission_date`, and modified stay bounds still enclose all attached
+    care appointments.
+
+    Args:
+      encounter_id (int): Primary key of the hospitalization's encounter.
+      data (EncounterUpdate): Partial update payload (only explicitly set fields apply).
+
+    Returns:
+      Hospitalization: Reloaded `Hospitalization` reflecting the committed changes.
+
+    Raises:
+      NotFound: If no hospitalization exists for `encounter_id`.
+      AppError: If a non-nullable field is set to `None` or a discharge date precedes `admission_date`.
+      Conflict: If modified stay dates exclude existing care appointments or `stay_number` collides.
+    """
     hospitalization = self.get_hospitalization(encounter_id)
     encounter = hospitalization.encounter
     changes = data.model_dump(exclude_unset=True)
@@ -112,6 +155,15 @@ class HospitalizationManagementService:
     return self.get_hospitalization(encounter_id)
 
   def delete_hospitalization(self, encounter_id: int) -> None:
+    """Delete a hospitalization and its encounter if no care appointments are attached.
+
+    Args:
+      encounter_id (int): Primary key of the hospitalization's encounter to delete.
+
+    Raises:
+      NotFound: If no hospitalization exists for `encounter_id`.
+      Conflict: If the stay already has one or more scheduled care appointments.
+    """
     hospitalization = self.get_hospitalization(encounter_id)
     # deleting the stay would leave its care appointments without a stay
     if self.appointments.exists_for_encounter(encounter_id):

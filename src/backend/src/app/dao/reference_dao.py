@@ -1,3 +1,4 @@
+"""Provide read-only queries for practitioner reference lists and ID resolution."""
 from sqlalchemy import select
 from sqlalchemy.orm import Session, selectinload
 
@@ -5,7 +6,11 @@ from app.models.practitioner import Practitioner
 
 
 class ReferenceDAO:
-  """Read-only list used by the forms: caregivers"""
+  """Load active practitioners for UI reference lists and resolve practitioner IDs.
+
+  `list_practitioners` filters for `active=True` and eager-loads `person`, while
+  `get_practitioners` resolves arbitrary ID lists regardless of `active` status.
+  """
 
   def __init__(self, session: Session):
     self.session = session

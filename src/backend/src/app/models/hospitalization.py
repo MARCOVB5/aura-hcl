@@ -1,3 +1,10 @@
+"""Define the inpatient hospitalization extension model for an encounter.
+
+`Hospitalization` extends `Encounter` in a 1-to-1 relationship using a shared
+primary key (`encounter_id` is both primary key and foreign key to
+`encounter.id`). It tracks inpatient admission workflow state (`AdmissionStatus`
+and `assessment_completed_at`) independently of the clinical encounter status.
+"""
 from __future__ import annotations
 
 import enum

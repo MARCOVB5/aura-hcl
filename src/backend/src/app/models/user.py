@@ -1,3 +1,9 @@
+"""Define the authentication user model bound one-to-one with a practitioner.
+
+`User` enforces a strict 1-to-1 link to `Practitioner` via a unique foreign key
+with `ondelete="RESTRICT"`, which prevents deleting a practitioner record from
+the database while a user account is still attached to it.
+"""
 from __future__ import annotations
 
 from sqlalchemy import ForeignKey, String

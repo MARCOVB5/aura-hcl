@@ -1,3 +1,11 @@
+"""Define pathology, allergy, and allergen catalog models for patients.
+
+`Pathology` stores both general clinical pathologies and patient allergies in a
+single `pathology` table, discriminated by `pathology_type_code` (`ALLERGY_TYPE_CODE`
+= `"ALLERGY"`). Patient allergies currently record free-text labels in
+`Pathology.name` with `allergen_id` left `None`, while `Allergen` and
+`AllergyCategory` prepare the structured allergen catalog.
+"""
 from __future__ import annotations
 
 from typing import TYPE_CHECKING
@@ -11,10 +19,6 @@ import enum
 
 if TYPE_CHECKING:
   from app.models.patient import Patient
-
-'''
-Enumeration / DataType classes for the Pathology group
-'''
 
 class AllergyCategory(enum.Enum):
   FOOD = "food"

@@ -1,3 +1,9 @@
+"""Define patient creation, full-replacement update, and output schemas.
+
+`PatientCreate` and `PatientOut` flatten the phone number (`contact`) and
+allergy list (`allergies`) onto the top-level patient payload while mapping
+to `Person.telecom` and `Pathology` in the ORM layer.
+"""
 from pydantic import BaseModel, ConfigDict, Field
 
 from app.models.patient import IdentificationStatus
@@ -20,7 +26,7 @@ class PatientCreate(BaseModel):
 
 
 class PatientUpdate(PatientCreate):
-    """Replaces the whole patient record: allergies missing from the list are removed"""
+    """Replace the entire patient record and remove any allergies omitted from `allergies`."""
 
 
 class PatientOut(BaseModel):

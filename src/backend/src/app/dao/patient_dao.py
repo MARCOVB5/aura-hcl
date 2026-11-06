@@ -1,3 +1,4 @@
+"""Provide database queries and persistence for `Patient` entities."""
 from sqlalchemy.orm import Session, selectinload
 from sqlalchemy import select
 from app.models.patient import Patient
@@ -11,6 +12,11 @@ PATIENT_OPTIONS = (
 
 
 class PatientDAO:
+  """Execute `Patient` queries with eager-loaded demographics and flush-only writes.
+
+  `get` performs a lightweight primary-key lookup, whereas `get_detailed` and
+  `list_all` eager-load `person.telecom` and `allergies` via `PATIENT_OPTIONS`.
+  """
 
   def __init__(self, session : Session):
     self.session = session

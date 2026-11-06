@@ -1,3 +1,9 @@
+"""Define request and response schemas for inpatient hospitalizations.
+
+`HospitalizationCreate` embeds `EncounterCreate` because creating a
+hospitalization atomically creates both the `Encounter` and its 1-to-1
+`Hospitalization` record.
+"""
 from datetime import datetime
 
 from pydantic import BaseModel, ConfigDict
