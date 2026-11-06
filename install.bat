@@ -15,6 +15,8 @@ if not exist .env (
   )
 )
 
+rem containers left by an earlier, failed attempt (the data is kept)
+docker compose down --remove-orphans || goto end
 docker compose build || goto end
 docker compose run --rm backend alembic upgrade head || goto end
 docker compose run --rm backend python scripts/populate_practitioners.py --password abc || goto end

@@ -13,6 +13,8 @@ if [ ! -f .env ]; then
   printf 'JWT_SECRET=%s\n' "$(LC_ALL=C tr -dc 'A-Za-z0-9' </dev/urandom | head -c 48)" > .env
 fi
 
+# containers left by an earlier, failed attempt (the data is kept)
+docker compose down --remove-orphans
 docker compose build
 docker compose run --rm backend alembic upgrade head
 docker compose run --rm backend python scripts/populate_practitioners.py --password abc

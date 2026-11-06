@@ -11,7 +11,7 @@ Application de gestion des soins en réanimation : patients, séjours et agenda 
 Il faut seulement Docker :
 
 - Windows et macOS : installez [Docker Desktop](https://www.docker.com/products/docker-desktop/) (il contient Docker Compose), puis ouvrez-le. Il doit rester ouvert pendant l'installation et l'utilisation.
-- Linux : installez [Docker Engine](https://docs.docker.com/engine/install/) avec le paquet `docker-compose-plugin`.
+- Linux : installez [Docker Engine](https://docs.docker.com/engine/install/) avec le paquet `docker-compose-plugin`, puis lancez `sudo usermod -aG docker $USER` et reconnectez-vous (sinon, lancez le script avec `sudo`).
 
 Depuis la racine du dépôt, lancez `sh install.sh` (Linux, macOS) ou `install.bat` (Windows).
 
