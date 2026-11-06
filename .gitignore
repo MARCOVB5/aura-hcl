@@ -1,2 +1,4 @@
 .vscode/settings.json
 src/Frontend-VueApp/Aura-WebApp/.env
+
+.env

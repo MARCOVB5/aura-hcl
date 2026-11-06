@@ -10,9 +10,10 @@ from create_user import prompt_password
 
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.parse_args()
+    parser.add_argument("--password", help="password of the three accounts; asked for when not given")
+    args = parser.parse_args()
     try:
-        password = prompt_password()
+        password = args.password if args.password is not None else prompt_password()
         with SessionLocal() as db:
             accounts = populate_demo_practitioners(db, password)
         for username, practitioner_id in accounts:

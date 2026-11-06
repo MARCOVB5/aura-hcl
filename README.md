@@ -6,13 +6,27 @@ Application de gestion des soins en réanimation : patients, séjours et agenda 
 - `src/Frontend-VueApp/Aura-WebApp/` : application Vue ([README](src/Frontend-VueApp/Aura-WebApp/README.md))
 - `database/` : image Docker de la base MariaDB
 
-## Prérequis
+## Installation rapide (Docker)
 
-- [uv](https://docs.astral.sh/uv/getting-started/installation/)
-- [Node.js](https://nodejs.org/)
-- Docker avec Docker Compose
+Il faut seulement Docker :
 
-## Installation
+- Windows et macOS : installez [Docker Desktop](https://www.docker.com/products/docker-desktop/) (il contient Docker Compose), puis ouvrez-le. Il doit rester ouvert pendant l'installation et l'utilisation.
+- Linux : installez [Docker Engine](https://docs.docker.com/engine/install/) avec le paquet `docker-compose-plugin`.
+
+Depuis la racine du dépôt, lancez `sh install.sh` (Linux, macOS) ou `install.bat` (Windows).
+
+Le script construit et démarre la base, l'API et l'application. Ouvrez ensuite http://localhost:5173 et connectez-vous avec
+`demo.medecin`, `demo.infirmier` ou `demo.kine`, mot de passe `abc`.
+
+- Arrêter : `docker compose down`
+- Relancer : `docker compose up -d`
+- Après un `git pull` : `docker compose up -d --build`
+
+Les ports 3306 (base), 8000 (API) et 5173 (application) doivent être libres. Si besoin (facultatif), arrêtez avant un MySQL ou MariaDB installé sur la machine, ainsi que `uv run fastapi dev` et `npm run dev` s'ils sont lancés.
+
+## Installation pour le développement
+
+Il faut [uv](https://docs.astral.sh/uv/getting-started/installation/), [Node.js](https://nodejs.org/) et Docker avec Docker Compose.
 
 Depuis la racine du dépôt :
 

@@ -7,6 +7,34 @@ services:
     volumes:
       - aura-db-data:/var/lib/mysql
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+
+  backend:
+    build: ./src/backend
+    container_name: aura-backend
+    environment:
+      DATABASE_URL: mysql+pymysql://aura:aura@db:3306/si_hospitalier_db?charset=utf8mb4
+      # from the .env next to this file, created by install.sh / install.bat
+      JWT_SECRET: ${JWT_SECRET:-}
+    ports:
+      - "127.0.0.1:8000:8000"
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: unless-stopped
+
+  frontend:
+    build: ./src/Frontend-VueApp/Aura-WebApp
+    container_name: aura-frontend
+    ports:
+      - "127.0.0.1:5173:80"
+    depends_on:
+      - backend
+    restart: unless-stopped
 
 volumes:
   aura-db-data:
