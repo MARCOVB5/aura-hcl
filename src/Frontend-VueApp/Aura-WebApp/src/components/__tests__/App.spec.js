@@ -1,8 +1,9 @@
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 import { enableAutoUnmount, flushPromises, mount } from '@vue/test-utils'
 import App from '../../App.vue'
+import { listPatients } from '../../api.js'
 import { endSession, session, startSession } from '../../session.js'
-import { hospitalizationOf, mockApi, stay } from './mockApi.js'
+import { appointment, hospitalizationOf, mockApi, stay } from './mockApi.js'
 
 const PATIENTS = [
   {
@@ -289,6 +290,47 @@ it('goes back to the login page when the token has expired', async () => {
   expect(localStorage.getItem('aura.token')).toBeNull()
 })
 
+it('starts from scratch when someone else logs in after the session expired', async () => {
+  mockApi([
+    ['GET', /\/api\/patients\?/, 200, PATIENTS],
+    ['GET', /\/api\/appointments\?/, 200, []],
+  ])
+  const wrapper = mount(App)
+  await flushPromises()
+  await wrapper.findAll('tbody tr')[0].trigger('click')
+  await flushPromises()
+  expect(wrapper.get('aside').text()).toContain('Camille Benoit')
+
+  // the same user comes back to what they were doing
+  endSession({ expired: true })
+  await flushPromises()
+  startSession('token-2', ME)
+  await flushPromises()
+  expect(wrapper.get('aside').text()).toContain('Camille Benoit')
+
+  endSession({ expired: true })
+  await flushPromises()
+  startSession('token-3', { ...ME, id: 2, username: 'demo.infirmier', practitioner_id: 2 })
+  await flushPromises()
+  expect(wrapper.get('aside').text()).not.toContain('Camille Benoit')
+})
+
+it('keeps the new session when a request sent before it fails with a 401', async () => {
+  let answer
+  const slow = new Promise((resolve) => (answer = resolve))
+  globalThis.fetch = vi.fn(async () => {
+    await slow
+    return { ok: false, status: 401, json: async () => ({ detail: 'Invalid credentials' }) }
+  })
+  const request = listPatients().catch(() => null)
+  startSession('token-new', ME)
+  answer()
+  await request
+
+  expect(session.token).toBe('token-new')
+  expect(session.user).toEqual(ME)
+})
+
 it('logs out with Déconnexion', async () => {
   mockFetch(PATIENTS)
   const wrapper = mount(App)
@@ -333,6 +375,30 @@ it('stays on the page the user went to while Modifier le séjour was loading', a
 
   expect(wrapper.get('h1').text()).not.toBe('Modifier le séjour')
   expect(wrapper.get('aside .active').text()).toContain('Calendrier')
+})
+
+it('comes back to the patient list from a late care opened in the sidebar', async () => {
+  mockApi([
+    ['GET', /\/api\/patients\?/, 200, PATIENTS],
+    ['GET', /\/api\/appointments\?/, 200, [appointment(5, CAMILLE, '2020-01-01T10:00:00')]],
+    ['GET', /\/api\/practitioners$/, 200, []],
+  ])
+  const wrapper = mount(App)
+  await flushPromises()
+  await wrapper.findAll('tbody tr')[0].trigger('click')
+  await flushPromises()
+
+  await wrapper.get('aside .late').trigger('click')
+  await flushPromises()
+  expect(wrapper.get('h1').text()).toBe('Modifier le soin')
+  expect(wrapper.get('aside .active').text()).toContain('Patients')
+
+  await wrapper
+    .findAll('button')
+    .find((b) => b.text() === 'Retour à la liste')
+    .trigger('click')
+  await flushPromises()
+  expect(wrapper.get('h1').text()).toBe('Patients')
 })
 
 it('shows the selected patient as they are now when the list is loaded again', async () => {

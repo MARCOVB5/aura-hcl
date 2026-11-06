@@ -62,6 +62,20 @@ it('shows the record, with "Non renseigné" for what is missing', async () => {
   expect(wrapper.emitted('edit')[0][0].id).toBe(2)
 })
 
+it('does not show a stay ended or cancelled without a discharge date as in progress', async () => {
+  const cancelled = { ...stay(42, THOMAS, '2026-09-01T09:00:00'), status: 'cancelled' }
+  mockApi([
+    ['GET', /\/api\/patients\/2$/, 200, THOMAS],
+    ['GET', /\/api\/patients\/2\/hospitalizations$/, 200, [hospitalizationOf(cancelled)]],
+    ['GET', /\/api\/appointments\?patient_id=2$/, 200, []],
+  ])
+  const wrapper = mount(PatientRecordView, { props: { patientId: 2 } })
+  await flushPromises()
+
+  expect(wrapper.get('.stay').text()).toContain('Annulé')
+  expect(wrapper.get('.stay').text()).not.toContain('En cours')
+})
+
 it('opens each stay on its own page to change it', async () => {
   const wrapper = mountRecord()
   await flushPromises()

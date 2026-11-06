@@ -150,6 +150,7 @@ it('edits a care: prefilled, patient fixed, saved with PUT', async () => {
   await flushPromises()
 
   expect(wrapper.get('h1').text()).toBe('Modifier le soin')
+  expect(wrapper.get('.stay-head').text()).toBe('Séjour en cours')
   expect(wrapper.text()).not.toContain('Changer de patient')
   expect(input(wrapper, 'Heure précise').get('input').element.value).toBe('09:30')
   expect(wrapper.findAll('.chip').map((c) => c.text())).toEqual(['Alice Merveille'])
@@ -172,6 +173,7 @@ it('refuses a care date outside the stay', async () => {
   await flushPromises()
   const date = input(wrapper, 'Date de réalisation').get('input')
   const refused = () => wrapper.text().includes('Le soin doit avoir lieu pendant le séjour')
+  expect(wrapper.get('.stay-head').text()).toBe('Séjour') // over on 22/10
 
   await date.setValue('18/10/2026') // before the admission
   expect(refused()).toBe(true)
@@ -185,4 +187,20 @@ it('refuses a care date outside the stay', async () => {
   await input(wrapper, 'Heure précise').get('input').setValue('11:00')
   expect(refused()).toBe(false)
   expect(submit(wrapper).attributes('disabled')).toBeUndefined()
+})
+
+it('compares the care with its stay to the second, like the backend', async () => {
+  const care = appointment(9, LEA, '2026-10-20T09:30:00', {
+    encounter: stay(13, LEA, '2026-10-19T08:00:30'),
+  })
+  mockBackend()
+  const wrapper = mount(CareFormView, { props: { today: TODAY, appointment: care } })
+  await flushPromises()
+  const refused = () => wrapper.text().includes('Le soin doit avoir lieu pendant le séjour')
+
+  await input(wrapper, 'Date de réalisation').get('input').setValue('19/10/2026')
+  await input(wrapper, 'Heure précise').get('input').setValue('08:00') // 30 s before the admission
+  expect(refused()).toBe(true)
+  await input(wrapper, 'Heure précise').get('input').setValue('08:01')
+  expect(refused()).toBe(false)
 })

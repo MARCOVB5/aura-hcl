@@ -106,6 +106,27 @@ it('edits an existing patient: prefilled, then saved with PUT', async () => {
   expect(wrapper.emitted('saved')[0][0].ipp).toBe('DEMO-002-B')
 })
 
+it('keeps what the form cannot show: a confirmed identity, the sex "other"', async () => {
+  const patient = {
+    id: 4,
+    ipp: 'DEMO-004',
+    identification_status: 'IDENTIFIED',
+    person: { name_family: 'Morel', name_given: 'Sam', birth_date: null, gender: 'other' },
+    allergies: [],
+    contact: null,
+    personal_info: null,
+  }
+  mockFetch(200, patient)
+  const wrapper = mount(PatientFormView, { props: { patient } })
+
+  await wrapper.get('form').trigger('submit')
+  await flushPromises()
+
+  const body = JSON.parse(fetch.mock.calls[0][1].body)
+  expect(body.identification_status).toBe('IDENTIFIED')
+  expect(body.person.gender).toBe('other')
+})
+
 it('sends gender "unknown" when no sex is chosen', async () => {
   mockFetch(201, { id: 8, person: {}, allergies: [] })
   const wrapper = mount(PatientFormView)

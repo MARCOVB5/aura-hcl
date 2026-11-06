@@ -66,6 +66,13 @@ function parseAllergies(text) {
 
 const orNull = (s) => s.trim() || null
 
+// an identity already confirmed (IDENTIFIED) stays so, unless the patient becomes "sous X"
+function identificationStatus() {
+  if (form.anonymous) return 'UNKNOWN'
+  const before = props.patient?.identification_status
+  return before && before !== 'UNKNOWN' ? before : 'PROVISIONAL'
+}
+
 async function submit() {
   if (!canSubmit.value) return
   submitting.value = true
@@ -75,10 +82,11 @@ async function submit() {
       name_family: orNull(form.nameFamily),
       name_given: orNull(form.nameGiven),
       birth_date: form.birthDate || null,
-      gender: form.gender || 'unknown',
+      // "other" has no button: it stays as it was
+      gender: form.gender || props.patient?.person.gender || 'unknown',
     },
     ipp: orNull(form.ipp),
-    identification_status: form.anonymous ? 'UNKNOWN' : 'PROVISIONAL',
+    identification_status: identificationStatus(),
     contact: orNull(form.contact),
     personal_info: orNull(form.personalInfo),
     allergies: parseAllergies(form.allergies),

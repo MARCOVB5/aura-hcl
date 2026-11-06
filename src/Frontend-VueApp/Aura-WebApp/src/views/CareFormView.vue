@@ -16,6 +16,7 @@ import {
   formatDate,
   formatDateTime,
   formatTime,
+  isStayInProgress,
   normalize,
   patientDetails,
   patientName,
@@ -160,14 +161,15 @@ const fieldsFilled = computed(
 )
 
 // the care takes place during its stay: from the admission to the discharge, if there is one
-// (same check as the backend). The values are "YYYY-MM-DDTHH:mm": they compare as strings
+// (same check as the backend, to the second). The values are "YYYY-MM-DDTHH:mm:ss": they
+// compare as strings
 const outsideStay = computed(() => {
   if (!stay.value || !form.date || !timeFilled.value) return false
   const weak = form.constraint === 'WEAK'
-  const first = `${form.date}T${weak ? form.start : form.exactTime}`
-  const last = weak ? `${form.date}T${form.end}` : first
-  const discharge = stay.value.actual_discharge_date?.slice(0, 16)
-  return first < stay.value.admission_date.slice(0, 16) || (discharge && last > discharge)
+  const first = `${form.date}T${weak ? form.start : form.exactTime}:00`
+  const last = weak ? `${form.date}T${form.end}:00` : first
+  const discharge = stay.value.actual_discharge_date?.slice(0, 19)
+  return first < stay.value.admission_date.slice(0, 19) || (discharge && last > discharge)
 })
 const stayDates = computed(() => {
   if (!stay.value) return ''
@@ -319,7 +321,14 @@ function createStay() {
           :class="{ warning: stayState === 'missing' }"
         >
           <div class="stay-head">
-            <strong>Séjour en cours</strong>
+            <!-- a care being changed may belong to a stay that is over -->
+            <strong>
+              {{
+                stayState !== 'found' || isStayInProgress(stay, today)
+                  ? 'Séjour en cours'
+                  : 'Séjour'
+              }}
+            </strong>
           </div>
           <p v-if="stayState === 'loading'" class="muted">Recherche du séjour en cours…</p>
           <p v-else-if="stayState === 'found'">

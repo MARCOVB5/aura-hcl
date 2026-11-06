@@ -4,13 +4,14 @@ import AppIcon from '../components/AppIcon.vue'
 import { getPatient, listAppointments, listPatientHospitalizations } from '../api.js'
 import {
   CARE_STATUSES,
+  STAY_EDIT_STATUSES,
   careWhen,
   formatDate,
   isLateCare,
+  isStayClosed,
   labelOf,
   patientName,
   practitionerName,
-  stayEnd,
 } from '../format.js'
 
 const GENDER_LABELS = { female: 'Féminin', male: 'Masculin', other: 'Autre' }
@@ -162,15 +163,17 @@ const countLabel = (n, word) => (n ? `${n} ${word}${n > 1 ? 's' : ''}` : `Aucun 
               </div>
               <div>
                 <dt>Date de fin</dt>
-                <dd :class="{ 'not-set': !stayEnd(stay) }">
-                  {{ stayEnd(stay) ? formatDate(dateOf(stayEnd(stay))) : 'En cours' }}
-                  <span
-                    v-if="!stay.actual_discharge_date && stay.expected_discharge_date"
-                    class="muted"
-                  >
-                    (prévue)
-                  </span>
+                <dd v-if="stay.actual_discharge_date">
+                  {{ formatDate(dateOf(stay.actual_discharge_date)) }}
                 </dd>
+                <dd v-else-if="isStayClosed(stay)">
+                  {{ labelOf(STAY_EDIT_STATUSES, stay.status) }}
+                </dd>
+                <dd v-else-if="stay.expected_discharge_date">
+                  {{ formatDate(dateOf(stay.expected_discharge_date)) }}
+                  <span class="muted">(prévue)</span>
+                </dd>
+                <dd v-else class="not-set">En cours</dd>
               </div>
               <div>
                 <dt>Localisation</dt>

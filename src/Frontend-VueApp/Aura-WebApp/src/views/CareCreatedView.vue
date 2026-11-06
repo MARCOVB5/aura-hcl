@@ -5,6 +5,7 @@ import {
   TIME_CONSTRAINTS,
   careWhen,
   formatDate,
+  isStayInProgress,
   labelOf,
   patientDetails,
   patientName,
@@ -73,7 +74,7 @@ const details = computed(() => [
         </div>
         <div class="stay-box">
           <div class="stay-head">
-            <strong>Séjour en cours</strong>
+            <strong>{{ isStayInProgress(a.encounter) ? 'Séjour en cours' : 'Séjour' }}</strong>
           </div>
           <p class="stay-start">
             Débuté le {{ formatDate(a.encounter.admission_date.slice(0, 10)) }}

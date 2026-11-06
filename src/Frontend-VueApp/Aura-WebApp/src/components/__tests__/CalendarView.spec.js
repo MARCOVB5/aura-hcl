@@ -125,6 +125,33 @@ it('loads the next month with the arrows and comes back with Aujourd’hui', asy
   expect(wrapper.get('h1').text()).toBe('Octobre 2026')
 })
 
+it('shows the month chosen last, even if an older month answers after it', async () => {
+  const api = mockApi([['GET', /\/api\/appointments\?/, 200, []]])
+  // November answers only after December, with a care of 30 November cancelled since
+  const november = [appointment(4, NORA, '2026-11-30T08:00:00')]
+  let answerNovember
+  const slow = new Promise((resolve) => (answerNovember = resolve))
+  globalThis.fetch = vi.fn(async (url, options) => {
+    if (url.includes('start=2026-10-26')) {
+      await slow
+      return { ok: true, status: 200, json: async () => november }
+    }
+    return api(url, options)
+  })
+  const wrapper = mount(CalendarView, { props: { today: TODAY } })
+  await flushPromises()
+
+  await wrapper.get('[aria-label="Mois suivant"]').trigger('click') // November
+  await wrapper.get('[aria-label="Mois suivant"]').trigger('click') // December
+  await flushPromises()
+  globalThis.fetch.mockClear()
+  answerNovember()
+  await flushPromises()
+
+  expect(wrapper.get('h1').text()).toBe('Décembre 2026')
+  expect(wrapper.findAll('.event')).toHaveLength(0)
+})
+
 it('opens the care details, with a button to change the care', async () => {
   const wrapper = mountCalendar()
   await flushPromises()

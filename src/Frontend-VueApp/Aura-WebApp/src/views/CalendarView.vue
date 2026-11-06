@@ -8,6 +8,7 @@ import {
   dayKey,
   formatDate,
   formatTime,
+  isStayClosed,
   labelOf,
   patientName,
   practitionerName,
@@ -70,7 +71,9 @@ const weeks = computed(() => {
 })
 
 // care of every day on screen, and the selected patient's stays
+let lastLoad = 0
 async function load() {
+  const current = ++lastLoad // a slower, older answer must not replace a newer one
   loading.value = true
   error.value = ''
   const days = weeks.value.flat()
@@ -79,12 +82,13 @@ async function load() {
       listAppointments({ start: days[0].key, end: days.at(-1).key }),
       props.patientFilter ? listPatientHospitalizations(props.patientFilter.id) : [],
     ])
+    if (current !== lastLoad) return
     appointments.value = care
     stays.value = patientStays.map((h) => h.encounter)
   } catch (e) {
-    error.value = e.message
+    if (current === lastLoad) error.value = e.message
   } finally {
-    loading.value = false
+    if (current === lastLoad) loading.value = false
   }
 }
 onMounted(load)
@@ -140,7 +144,9 @@ function stayLabel(stay) {
   const end = stayEnd(stay)
   const period = end
     ? `du ${start} au ${formatDate(end.slice(0, 10))}`
-    : `en cours depuis le ${start}`
+    : isStayClosed(stay)
+      ? `du ${start}`
+      : `en cours depuis le ${start}`
   return [`Séjour ${period}`, stay.location].filter(Boolean).join(' · ')
 }
 
@@ -148,7 +154,8 @@ function bandsOf(week) {
   return stays.value
     .map((stay) => {
       const start = stay.admission_date.slice(0, 10)
-      const end = stayEnd(stay)?.slice(0, 10) ?? '9999-12-31' // still in progress
+      // still in progress, or closed without a discharge date: only its first day
+      const end = stayEnd(stay)?.slice(0, 10) ?? (isStayClosed(stay) ? start : '9999-12-31')
       const first = week.findIndex((d) => d.key >= start)
       const last = week.findLastIndex((d) => d.key <= end)
       if (first === -1 || last === -1 || first > last) return null

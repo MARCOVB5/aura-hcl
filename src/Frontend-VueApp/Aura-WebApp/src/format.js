@@ -94,6 +94,20 @@ export const careDueAt = (a) =>
   new Date(a.time_constraint === 'WEAK' ? a.scheduled_end : a.scheduled_start)
 export const isLateCare = (a, now = new Date()) => a.status === 'PLANNED' && careDueAt(a) < now
 
+// a stay ended or cancelled, even without a discharge date (encounter_dao.CLOSED_STATUSES)
+const CLOSED_STAY_STATUSES = ['finished', 'cancelled', 'entered-in-error']
+export const isStayClosed = (encounter) => CLOSED_STAY_STATUSES.includes(encounter.status)
+
+// the stay in progress, as the backend sees it (encounter_dao.get_current)
+export function isStayInProgress(encounter, now = new Date()) {
+  const discharge = encounter.actual_discharge_date
+  return (
+    !isStayClosed(encounter) &&
+    new Date(encounter.admission_date) <= now &&
+    (!discharge || new Date(discharge) > now)
+  )
+}
+
 // the date part of a stay's end: actual discharge, or the expected one
 export function stayEnd(encounter) {
   return encounter.actual_discharge_date ?? encounter.expected_discharge_date ?? null

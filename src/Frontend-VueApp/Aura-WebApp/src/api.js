@@ -40,7 +40,8 @@ function errorMessage(status, body) {
 
 async function request(path, options = {}) {
   // every route but the login needs the token of the logged-in user
-  const auth = session.token ? { Authorization: `Bearer ${session.token}` } : {}
+  const token = session.token
+  const auth = token ? { Authorization: `Bearer ${token}` } : {}
   let response
   try {
     response = await fetch(`${API_URL}${path}`, {
@@ -53,7 +54,8 @@ async function request(path, options = {}) {
   const body = await response.json().catch(() => null) // 204 has no body
   if (!response.ok) {
     // the token has expired (after 8 hours) or is no longer valid: back to the login page
-    if (response.status === 401 && session.token) endSession({ expired: true })
+    // (only if it is still the token of the session: the user may have logged in again)
+    if (response.status === 401 && token && token === session.token) endSession({ expired: true })
     throw new ApiError(errorMessage(response.status, body), response.status, body?.detail)
   }
   return body

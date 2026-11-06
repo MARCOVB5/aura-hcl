@@ -1,5 +1,5 @@
 <script setup>
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import AppIcon from './components/AppIcon.vue'
 import AppSidebar from './components/AppSidebar.vue'
 import AdmissionSearchView from './views/AdmissionSearchView.vue'
@@ -55,14 +55,30 @@ onMounted(() => {
   if (session.token && !session.user) restoreSession()
 })
 
-function logout() {
-  endSession()
-  // the next user starts from scratch
+// the next user starts from scratch
+function resetState() {
   selectedPatient.value = null
   calendar.value = { service: true, mine: true, onlySelectedPatient: false }
   admissionCriteria.value = {}
   go('patients')
 }
+
+function logout() {
+  endSession()
+  resetState()
+}
+
+// after an expired token, only the same user comes back to the page they were on
+let lastUserId = null
+watch(
+  () => session.user?.id,
+  (id) => {
+    if (id == null) return
+    if (lastUserId !== null && id !== lastUserId) resetState()
+    lastUserId = id
+  },
+  { immediate: true },
+)
 
 // care opened from the patient list or record stays in the Patients section
 const careSection = (origin) => (['list', 'record'].includes(origin) ? 'patients' : 'calendar')
@@ -162,6 +178,16 @@ const stayBackLabel = {
 const planCare = (patient = null, origin = 'calendar') => go('care-form', { patient, origin })
 const editCare = (appointment, origin = 'calendar') => go('care-form', { appointment, origin })
 
+// a late care of the sidebar: back to the record or the list when one of them is shown
+function openSidebarCare(appointment) {
+  const { name, patientId } = page.value
+  if (name === 'patient-record' && patientId === appointment.patient.id) {
+    editCare(appointment, 'record')
+  } else {
+    editCare(appointment, section.value === 'patients' ? 'list' : 'calendar')
+  }
+}
+
 const careBackLabel = {
   calendar: 'Retour au calendrier',
   list: 'Retour à la liste',
@@ -204,7 +230,7 @@ function leaveCare(patient) {
       :selected-patient="selectedPatient"
       :refresh-key="savedCare"
       @navigate="navigate"
-      @open-care="editCare"
+      @open-care="openSidebarCare"
       @logout="logout"
     />
     <main class="main">
