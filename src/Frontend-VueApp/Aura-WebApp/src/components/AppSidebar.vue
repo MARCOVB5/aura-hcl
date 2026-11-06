@@ -50,21 +50,20 @@ const NAV_ITEMS = [
     <section class="calendars">
       <div class="calendars-heading">
         <span>Calendriers</span>
-        <AppIcon name="plus" :size="15" />
       </div>
       <label class="calendar-option">
-        <input v-model="showServiceCare" type="checkbox" class="checkbox" />
+        <input v-model="showServiceCare" type="checkbox" class="checkbox checkbox-grey" />
         Soins du service
       </label>
       <label class="calendar-option">
-        <input v-model="showMyCare" type="checkbox" class="checkbox checkbox-grey" />
+        <input v-model="showMyCare" type="checkbox" class="checkbox" />
         Mes soins
       </label>
       <label class="calendar-option">
         <input
           v-model="showSelectedPatient"
           type="checkbox"
-          class="checkbox"
+          class="checkbox checkbox-blue"
           :disabled="!selectedPatientName"
           title="Sélectionnez un patient dans la liste Patients"
         />
@@ -196,6 +195,10 @@ const NAV_ITEMS = [
 
 .checkbox-grey {
   accent-color: var(--color-text-muted);
+}
+
+.checkbox-blue {
+  accent-color: var(--color-patient);
 }
 
 .account {
