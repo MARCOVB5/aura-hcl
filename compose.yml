@@ -3,7 +3,8 @@ services:
     build: ./database
     container_name: aura-db
     ports:
-      - "127.0.0.1:3306:3306"
+      # set DB_PORT in .env when 3306 is taken (only the host side changes)
+      - "127.0.0.1:${DB_PORT:-3306}:3306"
     volumes:
       - aura-db-data:/var/lib/mysql
     restart: unless-stopped

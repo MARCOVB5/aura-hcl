@@ -23,6 +23,7 @@ Le script construit et démarre la base, l'API et l'application. Ouvrez ensuite 
 - Après un `git pull` : `docker compose up -d --build`
 
 Les ports 3306 (base), 8000 (API) et 5173 (application) doivent être libres. Si besoin (facultatif), arrêtez avant un MySQL ou MariaDB installé sur la machine, ainsi que `uv run fastapi dev` et `npm run dev` s'ils sont lancés.
+Pour garder un MySQL déjà installé, ajoutez plutôt la ligne `DB_PORT=3307` au fichier `.env` à la racine (créé par le script).
 
 ## Installation pour le développement
 
