@@ -1,31 +1,71 @@
-# Agile Agenda Patient
+# Aura
 
-Système miroir dédié à la gestion opérationnelle des soins en réanimation, interconnectable avec OpenEMR.
+Application de gestion des soins en réanimation : patients, séjours et agenda des soins.
 
-## Project goal
+- `src/backend/` : API FastAPI ([README](src/backend/README.md))
+- `src/Frontend-VueApp/Aura-WebApp/` : application Vue ([README](src/Frontend-VueApp/Aura-WebApp/README.md))
+- `database/` : image Docker de la base MariaDB
 
-Développer une application permettant de gérer le séjour d'un patient, les prescriptions et surtout l'agenda de soins, l'organisation des soins pour les soignants, les alertes de retard et la traçabilité des soins réalisés.
+## Prérequis
 
-## Repository structure
+- [uv](https://docs.astral.sh/uv/getting-started/installation/)
+- [Node.js](https://nodejs.org/)
+- Docker avec Docker Compose
 
-- `.github/` — templates Issues et Pull Requests
-- `docs/product/` — vision et périmètre produit
-- `docs/requirements/` — exigences et critères d'acceptation
-- `docs/architecture/` — architecture, modèle de données et décisions
-- `docs/agile/` — règles Agile, Sprint Reviews et rétrospectives
-- `docs/testing/` — stratégie de test
-- `docs/releases/` — documentation des versions livrées
-- `src/` — code source
-- `tests/` — tests
-- `database/` — migrations et données de démonstration
+## Installation
+
+Depuis la racine du dépôt :
+
+```bash
+docker compose up -d db
+cp src/backend/.env.example src/backend/.env
+```
+
+Sous Windows (cmd), utilisez `copy` au lieu de `cp`.
+
+Dans `src/backend/.env`, remplacez `JWT_SECRET` par le résultat de :
+
+```bash
+uv run python -c "import secrets; print(secrets.token_urlsafe(32))"
+```
+
+Puis :
+
+```bash
+cd src/backend
+uv sync
+uv run alembic upgrade head
+uv run python scripts/populate_practitioners.py
+cd ../Frontend-VueApp/Aura-WebApp
+npm install
+```
+
+La commande `populate_practitioners.py` demande un mot de passe et crée trois comptes avec :
+`demo.medecin`, `demo.infirmier` et `demo.kine`.
+
+## Lancement
+
+Dans un terminal :
+
+```bash
+cd src/backend
+uv run fastapi dev
+```
+
+Dans un autre :
+
+```bash
+cd src/Frontend-VueApp/Aura-WebApp
+npm run dev
+```
+
+Ouvrez http://localhost:5173 et connectez-vous avec un des comptes de démonstration.
 
 ## Documentation
 
-- [Product vision](docs/product/vision.md)
-- [Scope](docs/product/scope.md)
-- [Requirements](docs/requirements/requirements.md)
-- [Architecture](docs/architecture/architecture.md)
-- [Testing strategy](docs/testing/test-strategy.md)
+- [Vision](docs/product/vision.md)
+- [Périmètre](docs/product/scope.md)
+- [Exigences](docs/requirements/requirements.md)
+- [Stratégie de test](docs/testing/test-strategy.md)
 - [Definition of Ready](docs/agile/definition-of-ready.md)
 - [Definition of Done](docs/agile/definition-of-done.md)
-- [GitHub Project setup](docs/agile/github-project.md)

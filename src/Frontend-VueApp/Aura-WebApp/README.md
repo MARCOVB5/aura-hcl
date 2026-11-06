@@ -1,29 +1,22 @@
 # Aura WebApp
 
-Application Vue 3 utilisant Vite. L'utilisateur doit dans un premier lieu s'authentifier en tant que soignant. Il découvre ainsi un agenda des soins qu'il a effectué et qu'il aura à effectuer.
+Application Vue 3 (Vite).
 
-## Lancer le projet
+## Installation
+
+Il faut [Node.js](https://nodejs.org/) et le backend lancé (voir `src/backend/README.md`).
 
 ```sh
 npm install
 npm run dev
 ```
 
-Ouvrez l’adresse locale affichée dans le terminal (http://localhost:5173).
+Ouvrez http://localhost:5173 et connectez-vous avec un compte de démonstration (`demo.medecin`, `demo.infirmier` ou `demo.kine`).
 
-Le backend (`src/backend`, voir son README) doit tourner sur http://127.0.0.1:8000. Pour utiliser une autre adresse, créez un fichier `.env` ici avec :
+Le frontend appelle le backend sur http://127.0.0.1:8000. Pour une autre adresse, créez un fichier `.env` ici avec :
 
 ```
 VITE_API_URL=http://127.0.0.1:8000
 ```
 
 Tests : `npm run test:unit`.
-
-## Dossiers du projet
-
-- `src/` contient le code de l’application.
-- `src/views/` contient les pages (liste des patients, création d’un patient…).
-- `src/components/` contient les composants Vue réutilisables.
-- `src/api.js` contient les appels au backend.
-- `src/assets/` contient les styles et ressources utilisés par l’application.
-- `public/` contient les fichiers servis tels quels, comme les images.
