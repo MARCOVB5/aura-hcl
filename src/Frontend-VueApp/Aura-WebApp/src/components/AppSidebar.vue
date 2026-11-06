@@ -110,7 +110,11 @@ const NAV_ITEMS = [
   flex-direction: column;
   flex-shrink: 0;
   width: 232px;
-  min-height: 100vh;
+  /* stays in place while the page scrolls; scrolls on its own if taller than the screen */
+  position: sticky;
+  top: 0;
+  height: 100vh;
+  overflow-y: auto;
   padding: 28px 16px 20px;
   border-right: 1px solid var(--color-border);
   background: var(--color-sidebar);
